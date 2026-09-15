@@ -3,114 +3,89 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kabadiwala Connect — Mobile Traceability Hub</title>
-  <meta name="description" content="Operational Mobile Application for Dealers & Field Collectors in the Kabadiwala Connect circular e-waste platform.">
-  
+  <title>Kabadiwala Connect — Select App</title>
+  <meta name="description" content="Kabadiwala Connect platform — choose the Dealer App or Kabadiwala Lite collector app.">
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  
-  <!-- Stylesheets -->
-  <link rel="stylesheet" href="/src/css/main.css">
-  <link rel="stylesheet" href="/src/css/components.css">
-  <link rel="stylesheet" href="/src/css/dealer.css">
-  <link rel="stylesheet" href="/src/css/collector.css">
-  <link rel="stylesheet" href="/src/css/animations.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #0b1120;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .launcher {
+      text-align: center;
+      padding: 2rem;
+      max-width: 420px;
+      width: 100%;
+    }
+    .launcher-brand { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .launcher-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #f1f5f9;
+      margin-bottom: 0.25rem;
+    }
+    .launcher-subtitle {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin-bottom: 2.5rem;
+    }
+    .app-cards { display: flex; flex-direction: column; gap: 1rem; }
+    .app-card {
+      display: block;
+      text-decoration: none;
+      padding: 1.5rem;
+      border-radius: 16px;
+      border: 1px solid;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .app-card:hover { transform: translateY(-2px); }
+    .app-card.dealer {
+      background: rgba(16, 185, 129, 0.08);
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+    .app-card.dealer:hover { box-shadow: 0 8px 32px rgba(52, 211, 153, 0.15); }
+    .app-card.collector {
+      background: rgba(14, 165, 233, 0.08);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .app-card.collector:hover { box-shadow: 0 8px 32px rgba(56, 189, 248, 0.15); }
+    .card-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .card-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .app-card.dealer .card-name { color: #34d399; }
+    .app-card.collector .card-name { color: #38bdf8; }
+    .card-desc { font-size: 0.82rem; color: #94a3b8; line-height: 1.4; }
+  </style>
 </head>
 <body>
-  <!-- Device Frame Simulator Container (for Desktop & Responsive Mobile) -->
-  <div class="app-viewport-wrapper">
-    <div class="app-device-frame" id="appDeviceFrame">
-      
-      <!-- Top Status & Network Bar -->
-      <header class="app-topbar" id="appTopBar">
-        <div class="app-topbar-left">
-          <div class="app-brand">
-            <span class="app-brand-icon">♻️</span>
-            <span class="app-brand-text">Kabadiwala</span>
-            <span class="app-role-badge" id="appRoleBadge">Dealer</span>
-          </div>
-        </div>
-        <div class="app-topbar-right">
-          <!-- Network & Offline Status Indicator -->
-          <button class="network-badge online" id="networkBadge" title="Network status. Click to toggle simulated offline mode.">
-            <span class="network-dot"></span>
-            <span class="network-text" id="networkStatusText">Online</span>
-          </button>
-          
-          <!-- Role Mode Switcher (Dealer vs Collector Lite) -->
-          <button class="role-switch-btn" id="roleSwitchBtn" title="Switch between Dealer & Collector Lite">
-            <span class="role-switch-icon">🔄</span>
-          </button>
-        </div>
-      </header>
+  <div class="launcher">
+    <div class="launcher-brand">♻️</div>
+    <div class="launcher-title">Kabadiwala Connect</div>
+    <div class="launcher-subtitle">Select the app to launch</div>
 
-      <!-- Offline Sync Banner (Pops up when offline items exist) -->
-      <div class="sync-banner" id="syncBanner" style="display: none;">
-        <div class="sync-banner-info">
-          <span class="sync-banner-icon">⚡</span>
-          <span class="sync-banner-text" id="syncBannerText">2 purchases pending sync</span>
-        </div>
-        <button class="btn btn-sm btn-accent" id="syncNowBannerBtn">Sync Now</button>
-      </div>
+    <div class="app-cards">
+      <a href="/dealer.html" class="app-card dealer">
+        <div class="card-icon">🏪</div>
+        <div class="card-name">Dealer App</div>
+        <div class="card-desc">Log purchases, manage stock, create lots, find recyclers &amp; track your ledger.</div>
+      </a>
 
-      <!-- Main Dynamic Content Area -->
-      <main class="app-content" id="appContent">
-        <!-- View screens will be injected here dynamically -->
-        <div class="view-loading-spinner" id="initialLoader">
-          <div class="spinner"></div>
-          <p>Connecting to Kabadiwala Network...</p>
-        </div>
-      </main>
-
-      <!-- Bottom Navigation Bar for Dealer Mode -->
-      <nav class="app-bottom-nav" id="appBottomNav">
-        <button class="nav-item active" data-view="dealer-home">
-          <span class="nav-icon">📊</span>
-          <span class="nav-label">Home</span>
-        </button>
-        <button class="nav-item" data-view="log-purchase">
-          <span class="nav-icon">➕</span>
-          <span class="nav-label">Purchase</span>
-        </button>
-        <button class="nav-item" data-view="my-stock">
-          <span class="nav-icon">📦</span>
-          <span class="nav-label">Stock</span>
-        </button>
-        <button class="nav-item" data-view="create-lot">
-          <span class="nav-icon">🏷️</span>
-          <span class="nav-label">Lots</span>
-        </button>
-        <button class="nav-item" data-view="ledger">
-          <span class="nav-icon">📒</span>
-          <span class="nav-label">Ledger</span>
-        </button>
-      </nav>
-
-      <!-- Collector Bottom Navigation Bar -->
-      <nav class="app-bottom-nav collector-nav" id="collectorBottomNav" style="display: none;">
-        <button class="nav-item active" data-view="collector-lite">
-          <span class="nav-icon">📷</span>
-          <span class="nav-label">Scrap Scanner</span>
-        </button>
-        <button class="nav-item" data-view="collector-info">
-          <span class="nav-icon">ℹ️</span>
-          <span class="nav-label">Material Guide</span>
-        </button>
-        <button class="nav-item" data-action="switch-dealer">
-          <span class="nav-icon">🏪</span>
-          <span class="nav-label">Dealer App</span>
-        </button>
-      </nav>
-
+      <a href="/kabadiwala-lite.html" class="app-card collector">
+        <div class="card-icon">📷</div>
+        <div class="card-name">Kabadiwala Lite</div>
+        <div class="card-desc">On-device ML scrap classification for door-to-door e-waste collectors.</div>
+      </a>
     </div>
   </div>
-
-  <!-- Global Toast Notification Container -->
-  <div class="toast-container" id="toastContainer"></div>
-
-  <!-- Application Entry Point -->
-  <script type="module" src="/src/js/app.js"></script>
 </body>
 </html>

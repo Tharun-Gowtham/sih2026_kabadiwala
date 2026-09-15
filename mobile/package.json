@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host --port 5173",
+    "dev:dealer": "vite --host --port 5173 --open /dealer.html",
+    "dev:collector": "vite --host --port 5174 --port 5174 --open /kabadiwala-lite.html",
     "build": "vite build",
     "preview": "vite preview"
   },

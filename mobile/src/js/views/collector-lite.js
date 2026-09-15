@@ -19,9 +19,6 @@ export function renderCollectorLiteView(container, navigateTo) {
           <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);">Collector Lite</h2>
           <p style="font-size: 0.8rem; color: var(--text-secondary);">On-device ML material detection & safety guide</p>
         </div>
-        <button class="btn btn-sm btn-outline" id="switchToDealerTopBtn" style="color: #34d399; border-color: rgba(52, 211, 153, 0.3);">
-          Dealer App ➔
-        </button>
       </div>
 
       <!-- ML Notice Pill -->
@@ -105,11 +102,6 @@ export function renderCollectorLiteView(container, navigateTo) {
   const previewImg = container.querySelector('#collectorPhotoPreview');
   const overlay = container.querySelector('#viewfinderOverlay');
   const mlContainer = container.querySelector('#mlResultContainer');
-  const topSwitchBtn = container.querySelector('#switchToDealerTopBtn');
-
-  topSwitchBtn?.addEventListener('click', () => {
-    window.setAppMode('dealer');
-  });
 
   snapBtn.addEventListener('click', () => cameraInput.click());
   pickBtn.addEventListener('click', () => galleryInput.click());

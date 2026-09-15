@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kabadiwala Connect — Dealer App</title>
+  <meta name="description" content="Dealer application for Kabadiwala Connect — log purchases, manage stock, create lots, find recyclers and track your ledger.">
+  <meta name="application-name" content="KabadiDealer">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- Stylesheets — shared + dealer-specific -->
+  <link rel="stylesheet" href="/src/css/main.css">
+  <link rel="stylesheet" href="/src/css/components.css">
+  <link rel="stylesheet" href="/src/css/dealer.css">
+  <link rel="stylesheet" href="/src/css/animations.css">
+</head>
+<body>
+  <!-- Device Frame Simulator Container (for Desktop & Responsive Mobile) -->
+  <div class="app-viewport-wrapper">
+    <div class="app-device-frame" id="appDeviceFrame">
+
+      <!-- Top Status & Network Bar -->
+      <header class="app-topbar" id="appTopBar">
+        <div class="app-topbar-left">
+          <div class="app-brand">
+            <span class="app-brand-icon">♻️</span>
+            <span class="app-brand-text">Kabadiwala</span>
+            <span class="app-role-badge" id="appRoleBadge">Dealer</span>
+          </div>
+        </div>
+        <div class="app-topbar-right">
+          <!-- Network & Offline Status Indicator -->
+          <button class="network-badge online" id="networkBadge" title="Network status. Click to toggle simulated offline mode.">
+            <span class="network-dot"></span>
+            <span class="network-text" id="networkStatusText">Online</span>
+          </button>
+          <!-- No role-switch button — this is the Dealer App -->
+        </div>
+      </header>
+
+      <!-- Offline Sync Banner (Pops up when offline items exist) -->
+      <div class="sync-banner" id="syncBanner" style="display: none;">
+        <div class="sync-banner-info">
+          <span class="sync-banner-icon">⚡</span>
+          <span class="sync-banner-text" id="syncBannerText">2 purchases pending sync</span>
+        </div>
+        <button class="btn btn-sm btn-accent" id="syncNowBannerBtn">Sync Now</button>
+      </div>
+
+      <!-- Main Dynamic Content Area -->
+      <main class="app-content" id="appContent">
+        <!-- View screens will be injected here dynamically -->
+        <div class="view-loading-spinner" id="initialLoader">
+          <div class="spinner"></div>
+          <p>Connecting to Kabadiwala Network...</p>
+        </div>
+      </main>
+
+      <!-- Bottom Navigation Bar — Dealer Only -->
+      <nav class="app-bottom-nav" id="appBottomNav">
+        <button class="nav-item active" data-view="dealer-home">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Home</span>
+        </button>
+        <button class="nav-item" data-view="log-purchase">
+          <span class="nav-icon">➕</span>
+          <span class="nav-label">Purchase</span>
+        </button>
+        <button class="nav-item" data-view="my-stock">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Stock</span>
+        </button>
+        <button class="nav-item" data-view="create-lot">
+          <span class="nav-icon">🏷️</span>
+          <span class="nav-label">Lots</span>
+        </button>
+        <button class="nav-item" data-view="ledger">
+          <span class="nav-icon">📒</span>
+          <span class="nav-label">Ledger</span>
+        </button>
+      </nav>
+
+    </div>
+  </div>
+
+  <!-- Global Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Dealer Application Entry Point -->
+  <script type="module" src="/src/js/app.js"></script>
+</body>
+</html>
