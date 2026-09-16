@@ -23,6 +23,7 @@ class CollectorApp {
     this.contentEl = document.getElementById('appContent');
     this.collectorNav = document.getElementById('collectorBottomNav');
     this.topBarRight = document.querySelector('#appTopBar .app-topbar-right');
+    this._welcomeSpoken = false; // flag to only speak welcome once per session
   }
 
   async init() {
@@ -153,7 +154,8 @@ class CollectorApp {
 
     switch (viewName) {
       case 'collector-lite':
-        renderCollectorLiteView(this.contentEl, navigate);
+        renderCollectorLiteView(this.contentEl, navigate, !this._welcomeSpoken);
+        this._welcomeSpoken = true;
         break;
 
       case 'price-board':
@@ -177,6 +179,59 @@ class CollectorApp {
   _renderMaterialGuide() {
     const t = (k, p) => i18n.t(k, p);
 
+    // Safety info keyed by category — stored in JS not HTML to avoid attribute encoding issues
+    const safetyInfo = {
+      'PCB': {
+        recyclability: 'High (Precious Metals: Gold, Silver, Copper)',
+        safetyNote: 'Contains solder alloys and trace lead/brominated flame retardants. Handle with dry gloves.',
+        safetyNote_hi: 'इसमें सोल्डर और थोड़ी मात्रा में सीसा होता है। सूखे दस्ताने पहन कर उठाएं।',
+        indicativeRate: '₹400 - ₹550 / kg',
+        sortingTips: 'Separate motherboards from low-grade power supply boards.'
+      },
+      'CRT': {
+        recyclability: 'Moderate (Lead Glass, Copper Yoke)',
+        safetyNote: 'High vacuum hazard and toxic leaded funnel glass. Do NOT crush or puncture screen.',
+        safetyNote_hi: 'इसकी कांच में जहरीला सीसा होता है। स्क्रीन को तोड़ें या छेदें बिल्कुल नहीं।',
+        indicativeRate: '₹35 - ₹50 / kg',
+        sortingTips: 'Keep vacuum funnel intact to prevent hazardous implosion.'
+      },
+      'LCD': {
+        recyclability: 'Moderate (Indium Tin Oxide, Backlight CCFL/LED)',
+        safetyNote: 'Older models contain CCFL mercury backlights. Avoid flexing panel.',
+        safetyNote_hi: 'पुराने मॉडल में पारा होता है। पैनल को मोड़ें नहीं।',
+        indicativeRate: '₹150 - ₹210 / kg',
+        sortingTips: 'Store flat to prevent glass breakage.'
+      },
+      'Cable': {
+        recyclability: 'Very High (High-purity Copper / Aluminum Wire)',
+        safetyNote: 'Do NOT open-burn insulation. Use mechanical stripping only.',
+        safetyNote_hi: 'तार का प्लास्टिक जलाएं बिल्कुल नहीं। केवल मशीन से उतारें।',
+        indicativeRate: '₹280 - ₹380 / kg',
+        sortingTips: 'Bundle ribbon cables and high-voltage cords separately.'
+      },
+      'Battery': {
+        recyclability: 'Critical Circularity (Lithium, Cobalt, Nickel, Lead)',
+        safetyNote: 'Severe fire and chemical burn hazard! Insulate terminals with non-conductive tape.',
+        safetyNote_hi: 'बहुत खतरनाक! आग और रासायनिक जलन का खतरा है। टर्मिनल को टेप से ढकें।',
+        indicativeRate: '₹80 - ₹120 / kg',
+        sortingTips: 'Never mix swollen Li-ion pouches with heavy lead-acid units.'
+      },
+      'Motor/Magnet': {
+        recyclability: 'High (Copper windings, Rare Earth Neodymium, Steel core)',
+        safetyNote: 'Strong pinch hazard from permanent rare-earth magnets.',
+        safetyNote_hi: 'इसके शक्तिशाली चुंबक उंगलियां दबा सकते हैं। सावधानी से उठाएं।',
+        indicativeRate: '₹80 - ₹110 / kg',
+        sortingTips: 'Heavy steel housing can be separated from inner copper stator.'
+      },
+      'Mixed Plastic': {
+        recyclability: 'Moderate (Polymer Pelletization)',
+        safetyNote: 'Non-hazardous but ensure no chemical residue.',
+        safetyNote_hi: 'यह खतरनाक नहीं है, लेकिन रसायन के निशान न हों यह सुनिश्चित करें।',
+        indicativeRate: '₹25 - ₹40 / kg',
+        sortingTips: 'Remove rubber gaskets and metal screws before processing.'
+      }
+    };
+
     this.contentEl.innerHTML = `
       <div class="view-transition">
         <div style="margin-bottom: var(--space-md);">
@@ -192,23 +247,14 @@ class CollectorApp {
         </div>
 
         ${CANONICAL_CATEGORIES.map(cat => {
-          const info = {
-            'PCB': { recyclability: 'High (Precious Metals: Gold, Silver, Copper)', safetyNote: '⚠️ Contains solder alloys and trace lead/brominated flame retardants. Handle with dry gloves.', indicativeRate: '₹400 - ₹550 / kg', sortingTips: 'Separate motherboards from low-grade power supply boards.' },
-            'CRT': { recyclability: 'Moderate (Lead Glass, Copper Yoke)', safetyNote: '⚠️ High vacuum hazard and toxic leaded funnel glass. Do NOT crush or puncture screen.', indicativeRate: '₹35 - ₹50 / kg', sortingTips: 'Keep vacuum funnel intact to prevent hazardous implosion.' },
-            'LCD': { recyclability: 'Moderate (Indium Tin Oxide, Backlight CCFL/LED)', safetyNote: '⚠️ Older models contain CCFL mercury backlights. Avoid flexing panel.', indicativeRate: '₹150 - ₹210 / kg', sortingTips: 'Store flat to prevent glass breakage.' },
-            'Cable': { recyclability: 'Very High (High-purity Copper / Aluminum Wire)', safetyNote: '⚠️ Do NOT open-burn insulation. Use mechanical stripping only.', indicativeRate: '₹280 - ₹380 / kg', sortingTips: 'Bundle ribbon cables and high-voltage cords separately.' },
-            'Battery': { recyclability: 'Critical Circularity (Lithium, Cobalt, Nickel, Lead)', safetyNote: '🚨 Severe fire and chemical burn hazard! Insulate terminals with non-conductive tape.', indicativeRate: '₹80 - ₹120 / kg', sortingTips: 'Never mix swollen Li-ion pouches with heavy lead-acid units.' },
-            'Motor/Magnet': { recyclability: 'High (Copper windings, Rare Earth Neodymium, Steel core)', safetyNote: '⚠️ Strong pinch hazard from permanent rare-earth magnets.', indicativeRate: '₹80 - ₹110 / kg', sortingTips: 'Heavy steel housing can be separated from inner copper stator.' },
-            'Mixed Plastic': { recyclability: 'Moderate (Polymer Pelletization)', safetyNote: 'ℹ️ Non-hazardous but ensure no chemical residue.', indicativeRate: '₹25 - ₹40 / kg', sortingTips: 'Remove rubber gaskets and metal screws before processing.' }
-          }[cat.id] || {};
-
+          const info = safetyInfo[cat.id] || {};
           const catName = i18n.getCategoryName(cat.id);
 
           return `
             <div class="material-info-card" style="margin-bottom: var(--space-md);">
               <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <span class="card-title" style="font-size: 0.95rem;">${cat.icon} ${catName}</span>
-                <button class="btn btn-sm btn-outline guide-speak-btn" data-cat="${cat.id}" data-text="${info.safetyNote}" title="Listen / सुनें">
+                <button class="btn btn-sm btn-outline guide-speak-btn" data-cat="${cat.id}" title="Listen / सुनें">
                   <span>🔊 ${t('listenSafety')}</span>
                 </button>
               </div>
@@ -224,7 +270,7 @@ class CollectorApp {
               </div>
 
               <div class="material-safety-note" style="margin-top: 8px;">
-                ${info.safetyNote || ''}
+                ${info.safetyNote ? `⚠️ ${info.safetyNote}` : ''}
               </div>
             </div>
           `;
@@ -232,16 +278,21 @@ class CollectorApp {
       </div>
     `;
 
-    // Bind Safety Audio playback
+    // Bind Safety Audio playback — reads from JS safetyInfo map, not broken HTML attributes
     this.contentEl.querySelectorAll('.guide-speak-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const catId = btn.getAttribute('data-cat');
-        const text = btn.getAttribute('data-text');
+        const info = safetyInfo[catId] || {};
         const catName = i18n.getCategoryName(catId);
-        const cleanText = `${catName}: ${text.replace(/[⚠️🚨ℹ️]/g, '')}`;
+        const lang = i18n.getLang();
+
+        // Use Hindi note if language is Hindi, otherwise fallback to English
+        const safetyText = (lang === 'hi' && info.safetyNote_hi)
+          ? `${catName}: ${info.safetyNote_hi}`
+          : `${catName}: ${info.safetyNote || 'No safety information available.'}`;
 
         btn.classList.add('pulse-anim');
-        i18n.speak(cleanText, {
+        i18n.speak(safetyText, {
           onEnd: () => btn.classList.remove('pulse-anim'),
           onError: () => btn.classList.remove('pulse-anim')
         });
