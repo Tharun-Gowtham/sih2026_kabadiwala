@@ -7,6 +7,15 @@
   <meta name="description" content="Dealer application for Kabadiwala Connect — log purchases, manage stock, create lots, find recyclers and track your ledger.">
   <meta name="application-name" content="KabadiDealer">
 
+  <!-- PWA & Mobile Meta Tags -->
+  <meta name="theme-color" content="#0b1120">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +30,19 @@
 <body>
   <!-- Device Frame Simulator Container (for Desktop & Responsive Mobile) -->
   <div class="app-viewport-wrapper">
+    <!-- Desktop Demo App Switcher (Visible on Laptop/Desktop for Stakeholders) -->
+    <div class="desktop-demo-bar">
+      <div class="demo-bar-title">
+        <span>♻️</span>
+        <span>SIH 2026 Ecosystem</span>
+      </div>
+      <div class="demo-bar-links">
+        <a href="/kabadiwala-lite.html" class="demo-bar-link">📱 Collector Lite</a>
+        <a href="/dealer.html" class="demo-bar-link active">🏪 Dealer Hub</a>
+        <a href="http://localhost:5174/" target="_blank" class="demo-bar-link">🏭 Recycler Portal ↗</a>
+      </div>
+    </div>
+
     <div class="app-device-frame" id="appDeviceFrame">
 
       <!-- Top Status & Network Bar -->
@@ -89,6 +111,17 @@
 
   <!-- Global Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Service Worker Registration for Offline Use -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => console.log('✓ ServiceWorker active for dealer app:', reg.scope))
+          .catch((err) => console.warn('ServiceWorker registration error:', err));
+      });
+    }
+  </script>
 
   <!-- Dealer Application Entry Point -->
   <script type="module" src="/src/js/app.js"></script>

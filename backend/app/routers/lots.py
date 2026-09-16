@@ -77,12 +77,47 @@ def create_lot(
     db.add(lot)
     db.flush()
 
-    # 4. Allocate purchases to pool them
-    allocated_weight = 0.0
+    # 4. Allocate purchases to pool them with partial consumption splitting
+    remaining_needed = data.declared_weight
     for p in available_purchases:
-        p.lot_id = lot.lot_id
-        allocated_weight += p.weight
-        if allocated_weight >= data.declared_weight:
+        if p.weight <= remaining_needed + 1e-6:
+            p.lot_id = lot.lot_id
+            remaining_needed -= p.weight
+            if remaining_needed <= 1e-6:
+                break
+        else:
+            # Split the purchase to prevent vanishing stock
+            leftover_weight = round(p.weight - remaining_needed, 4)
+            allocated_weight = round(remaining_needed, 4)
+
+            unit_p = p.unit_price if p.unit_price else (p.price / p.weight if p.weight > 0 else 0.0)
+            allocated_price = round(unit_p * allocated_weight, 2)
+            leftover_price = round(p.price - allocated_price, 2)
+            if leftover_price < 0:
+                leftover_price = 0.0
+
+            # Create leftover purchase for unallocated stock
+            leftover_purchase = Purchase(
+                purchase_id=str(uuid.uuid4()),
+                dealer_id=p.dealer_id,
+                category=p.category,
+                weight=leftover_weight,
+                price=leftover_price,
+                unit_price=p.unit_price,
+                sync_status=p.sync_status,
+                lot_id=None,
+                collector_reference=p.collector_reference,
+                photo_url=p.photo_url,
+                created_at=p.created_at,
+                synced_at=p.synced_at
+            )
+            db.add(leftover_purchase)
+
+            # Assign allocated portion to lot
+            p.weight = allocated_weight
+            p.price = allocated_price
+            p.lot_id = lot.lot_id
+            remaining_needed = 0.0
             break
 
     db.commit()
@@ -128,6 +163,15 @@ def list_dealer_lots(
         for l in lots
     ]
 
+@router.get("/dealer/my-lots", response_model=List[LotResponse])
+def list_dealer_lots_alias(
+    status: Optional[str] = Query(None),
+    current_dealer: User = Depends(get_current_dealer),
+    db: Session = Depends(get_db)
+):
+    """Route alias for mobile client apiClient.getMyLots()"""
+    return list_dealer_lots(status=status, current_dealer=current_dealer, db=db)
+
 @router.get("/{lot_id}", response_model=LotResponse)
 def get_lot(
     lot_id: str,
@@ -161,6 +205,7 @@ def get_lot(
     )
 
 @router.patch("/{lot_id}/assign-recycler", response_model=LotResponse)
+@router.post("/{lot_id}/assign-recycler", response_model=LotResponse)
 def assign_recycler(
     lot_id: str,
     data: LotAssignRecycler,
@@ -178,6 +223,11 @@ def assign_recycler(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot assign recycler to already completed lot"
+        )
+    if lot.status == LotStatus.CANCELLED.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot assign recycler to a cancelled lot"
         )
 
     recycler = db.query(User).filter(User.id == data.recycler_id, User.role == UserRole.RECYCLER.value).first()
@@ -208,6 +258,56 @@ def assign_recycler(
         declared_weight=lot.declared_weight,
         recycler_id=lot.recycler_id,
         recycler_name=recycler.name,
+        status=lot.status,
+        created_at=lot.created_at,
+        updated_at=lot.updated_at
+    )
+
+@router.post("/{lot_id}/cancel", response_model=LotResponse)
+def cancel_lot(
+    lot_id: str,
+    current_dealer: User = Depends(get_current_dealer),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel an existing lot in POOLED or PENDING_HANDOVER status.
+    Unlinks all allocated purchases (resetting p.lot_id = None), restoring stock to dealer inventory.
+    """
+    lot = db.query(Lot).filter(Lot.lot_id == lot_id, Lot.dealer_id == current_dealer.id).first()
+    if not lot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lot not found or access denied"
+        )
+
+    if lot.status == LotStatus.COMPLETED.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel an already completed lot"
+        )
+    if lot.status == LotStatus.CANCELLED.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Lot is already cancelled"
+        )
+
+    # Release all purchases linked to this lot back to available stock
+    for p in lot.purchases:
+        p.lot_id = None
+
+    lot.status = LotStatus.CANCELLED.value
+    lot.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(lot)
+
+    return LotResponse(
+        lot_id=lot.lot_id,
+        dealer_id=lot.dealer_id,
+        dealer_name=current_dealer.name,
+        category=lot.category,
+        declared_weight=lot.declared_weight,
+        recycler_id=lot.recycler_id,
+        recycler_name=lot.recycler.name if lot.recycler else None,
         status=lot.status,
         created_at=lot.created_at,
         updated_at=lot.updated_at

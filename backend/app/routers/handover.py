@@ -161,6 +161,8 @@ def confirm_handover(
         rate_per_kg=tx.rate_per_kg,
         total_payout=tx.total_payout,
         status=tx.status,
+        disputed=tx.disputed,
+        dispute_reason=tx.dispute_reason,
         timestamp=tx.timestamp,
         notes=tx.notes
     )

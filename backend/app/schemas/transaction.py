@@ -20,6 +20,9 @@ class ConfirmHandoverRequest(BaseModel):
     verified_weight: float = Field(..., gt=0, description="Actual physical weight measured by Recycler in kg")
     notes: Optional[str] = None
 
+class DisputeTransactionRequest(BaseModel):
+    reason: str = Field(..., min_length=3, description="Reason for disputing the weight or payout")
+
 class TransactionResponse(BaseModel):
     transaction_id: str
     lot_id: str
@@ -34,6 +37,8 @@ class TransactionResponse(BaseModel):
     rate_per_kg: float
     total_payout: float
     status: str
+    disputed: bool = False
+    dispute_reason: Optional[str] = None
     timestamp: datetime
     notes: Optional[str] = None
 

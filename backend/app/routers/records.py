@@ -3,12 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.config import UserRole
+from app.core.config import UserRole, LotStatus
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.schemas.transaction import (
     TransactionResponse,
-    VerifiedTransactionRecordResponse
+    VerifiedTransactionRecordResponse,
+    DisputeTransactionRequest
 )
 from app.services.pdf_generator import generate_transaction_pdf
 
@@ -41,6 +42,8 @@ def list_transactions(
             rate_per_kg=t.rate_per_kg,
             total_payout=t.total_payout,
             status=t.status,
+            disputed=t.disputed if hasattr(t, 'disputed') else False,
+            dispute_reason=t.dispute_reason if hasattr(t, 'dispute_reason') else None,
             timestamp=t.timestamp,
             notes=t.notes
         )
@@ -76,6 +79,86 @@ def get_transaction(
         rate_per_kg=tx.rate_per_kg,
         total_payout=tx.total_payout,
         status=tx.status,
+        disputed=tx.disputed if hasattr(tx, 'disputed') else False,
+        dispute_reason=tx.dispute_reason if hasattr(tx, 'dispute_reason') else None,
+        timestamp=tx.timestamp,
+        notes=tx.notes
+    )
+
+@router.post("/{transaction_id}/dispute", response_model=TransactionResponse)
+def dispute_transaction(
+    transaction_id: str,
+    data: DisputeTransactionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    tx = db.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+    if not tx:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    if current_user.role != UserRole.DEALER.value or tx.dealer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the selling dealer can dispute this transaction")
+
+    tx.disputed = True
+    tx.dispute_reason = data.reason
+    tx.status = LotStatus.DISPUTED.value
+    db.commit()
+    db.refresh(tx)
+
+    return TransactionResponse(
+        transaction_id=tx.transaction_id,
+        lot_id=tx.lot_id,
+        dealer_id=tx.dealer_id,
+        dealer_name=tx.dealer.name if tx.dealer else None,
+        recycler_id=tx.recycler_id,
+        recycler_name=tx.recycler.name if tx.recycler else None,
+        category=tx.category,
+        declared_weight=tx.declared_weight,
+        verified_weight=tx.verified_weight,
+        discrepancy_percentage=tx.discrepancy_percentage,
+        rate_per_kg=tx.rate_per_kg,
+        total_payout=tx.total_payout,
+        status=tx.status,
+        disputed=tx.disputed,
+        dispute_reason=tx.dispute_reason,
+        timestamp=tx.timestamp,
+        notes=tx.notes
+    )
+
+@router.post("/{transaction_id}/accept", response_model=TransactionResponse)
+def accept_transaction(
+    transaction_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    tx = db.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+    if not tx:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    if current_user.role != UserRole.DEALER.value or tx.dealer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the selling dealer can accept this transaction")
+
+    tx.disputed = False
+    tx.status = LotStatus.COMPLETED.value
+    db.commit()
+    db.refresh(tx)
+
+    return TransactionResponse(
+        transaction_id=tx.transaction_id,
+        lot_id=tx.lot_id,
+        dealer_id=tx.dealer_id,
+        dealer_name=tx.dealer.name if tx.dealer else None,
+        recycler_id=tx.recycler_id,
+        recycler_name=tx.recycler.name if tx.recycler else None,
+        category=tx.category,
+        declared_weight=tx.declared_weight,
+        verified_weight=tx.verified_weight,
+        discrepancy_percentage=tx.discrepancy_percentage,
+        rate_per_kg=tx.rate_per_kg,
+        total_payout=tx.total_payout,
+        status=tx.status,
+        disputed=tx.disputed,
+        dispute_reason=tx.dispute_reason,
         timestamp=tx.timestamp,
         notes=tx.notes
     )

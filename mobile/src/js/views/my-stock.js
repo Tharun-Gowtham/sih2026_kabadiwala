@@ -22,9 +22,10 @@ export async function renderMyStockView(container, navigateTo) {
     // Attempt to fetch authoritative stock from backend
     const stockData = await apiClient.getStock().catch(() => null);
 
-    if (stockData && stockData.items) {
-      stockItems = stockData.items;
-      totalAvailableWeight = stockData.total_available_weight || 0;
+    const categoriesList = stockData ? (stockData.categories || stockData.items) : null;
+    if (categoriesList && Array.isArray(categoriesList)) {
+      stockItems = categoriesList;
+      totalAvailableWeight = stockData.total_available_weight !== undefined ? stockData.total_available_weight : stockItems.reduce((acc, i) => acc + (i.available_weight || 0), 0);
     } else {
       // Aggregate from local database
       const localPurchases = await getAllLocalPurchases();

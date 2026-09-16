@@ -101,7 +101,7 @@ export async function renderFindRecyclerView(container, navigateTo) {
                   <div class="recycler-name" style="margin-top: 4px;">${r.company_name}</div>
                 </div>
                 <div class="recycler-score-badge">
-                  ${r.match_score ? r.match_score.toFixed(0) : 85}% Match
+                  ${(r.score !== undefined ? r.score : (r.match_score !== undefined ? r.match_score : 85)).toFixed(0)}% Match
                 </div>
               </div>
 

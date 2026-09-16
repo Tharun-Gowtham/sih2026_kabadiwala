@@ -4,6 +4,7 @@ import { resolve } from 'path';
 export default defineConfig({
   root: '.',
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/api': {

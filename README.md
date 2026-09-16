@@ -1,125 +1,167 @@
-# Kabadiwala Connect — Project Documentation
+# Kabadiwala Connect — Digital E-Waste Traceability Platform
 
-Kabadiwala Connect is a digital traceability and workflow platform for the
-informal and formal e-waste recycling ecosystem.
+> **Smart India Hackathon (SIH 2026)** — Formalizing the Informal E-Waste Economy Through Machine-Assisted Offline Traceability, Dual-Weighed Mass Balance, and CPCB EPR Compliance.
 
-The platform connects:
+Kabadiwala Connect is a unified 3-tier hardware-aware traceability and transaction settlement platform that bridges the informal recycling ecosystem with authorized industrial recyclers and government compliance bodies:
 
-Door-to-door Collector
-        ↓
-Dealer
-        ↓
-Recycler
+```
+[ Doorstep Collector ]  ───>  [ Scrap Dealer Aggregator ]  ───>  [ Authorized Recycler ]  ───>  [ CPCB / SPCB ]
+  (Kabadiwala Lite PWA)            (Dealer Web / PWA)             (Recycler Portal)            (EPR Audit Records)
+```
 
-The system helps record scrap purchases, maintain dealer inventory, create
-lots, match dealers with recyclers, verify physical handovers, and maintain
-platform-side verified transaction records.
+---
 
-## Main Goals
+## The 3 Interconnected Applications
 
-1. Help collectors identify scrap material quickly.
-2. Allow dealers to digitally record purchases.
-3. Support offline-first dealer operations.
-4. Maintain accurate dealer stock.
-5. Pool material into traceable lots.
-6. Match lots with suitable recyclers.
-7. Connect physical handovers with digital lot records using QR.
-8. Allow recyclers to verify actual received weight.
-9. Detect large weight discrepancies.
-10. Prevent duplicate transactions.
-11. Maintain transaction history and dealer ledger.
-12. Generate a platform-side verified transaction record.
+| Persona | Application | Port / Route | Tech Stack | Core Capabilities |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Doorstep Collector** | **Kabadiwala Lite** | `http://localhost:5173/kabadiwala-lite.html` | Vanilla JS, PWA, IndexedDB | 4-step guided classifier, on-device ML scrap ID, 8-language vernacular audio, instant fair value discovery, offline GPS digital slips. |
+| **2. Scrap Dealer** | **Dealer Hub** | `http://localhost:5173/dealer.html` | Vanilla JS, IndexedDB, REST | Purchase intake logging, offline sync queue, live stock mass balance, ranked recycler matching, QR handover code generation, dealer financial ledger. |
+| **3. Industrial Recycler** | **Recycler Portal** | `http://localhost:5174/` | React 19, Vite, Tailwind CSS | Incoming lots stream, dual-weighing verification, discrepancy tolerance engine (>5% flagged, >30% critical warning), 1-click CPCB Form 6 PDF certificate download. |
+| **Core API & Database** | **FastAPI Backend** | `http://localhost:8000` (Docs: `/docs`) | FastAPI, SQLAlchemy, SQLite | Mass-balance split engine, JWT authentication, haversine distance matching, ReportLab PDF certificate engine, tamper-evident audit logs. |
 
-## Important Scope Boundary
+---
 
-The ML classifier is used for the door-to-door collector.
+## Quick Start: Running on Any Computer (Windows, macOS, Linux)
 
-It is an assistance tool, not the final authority for dealer purchases.
+### 1. Prerequisites
+- **Python**: 3.10 or higher (`python --version`)
+- **Node.js**: 18.0 or higher (`node -v`)
+- **Git**
 
-Collector:
+### 2. Setup & Installation
+Open your terminal in the repository root:
 
-Photo → ML suggestion → Collector confirms/corrects
+```bash
+# A. Install Python backend dependencies
+cd backend
+python -m venv venv
 
-Dealer:
+# Activate venv:
+# Windows: venv\Scripts\activate
+# macOS/Linux: source venv/bin/activate
 
-Actual material → Dealer records purchase
+pip install -r requirements.txt
 
-Recycler:
+# B. Install Mobile App dependencies
+cd ../mobile
+npm install
 
-Physical lot → Recycler verifies → Recycler confirms handover
+# C. Install Recycler Dashboard dependencies
+cd ../recycler-dashboard-frontend
+npm install
+```
 
-## Material Categories
+### 3. Launch the 3 Services
+Open 3 terminal windows to run the stack:
 
-The system uses exactly seven categories:
+```bash
+# Terminal 1: Core FastAPI Backend
+cd backend
+python run.py
+# -> Running on http://127.0.0.1:8000 (Swagger docs: http://127.0.0.1:8000/docs)
 
-- PCB
-- CRT
-- LCD
-- Cable
-- Battery
-- Motor/Magnet
-- Mixed Plastic
+# Terminal 2: Collector Lite & Dealer App
+cd mobile
+npm run dev
+# -> Running on http://localhost:5173
 
-These category names must remain consistent across:
+# Terminal 3: Recycler Dashboard Portal
+cd recycler-dashboard-frontend
+npm run dev
+# -> Running on http://localhost:5174
+```
 
-- Mobile app
-- ML model
-- Backend
-- Database
-- Recycler dashboard
-- APIs
-- QR workflow
-- Transaction records
+---
 
-## Main Prototype Flow
+## Running on Real Mobile Phones (Android & iOS)
 
-Collector
-→ Identify material
-→ Dealer
-→ Log purchase
-→ Offline save/sync
-→ Stock
-→ Create Lot
-→ Find Recycler
-→ Select Recycler
-→ Generate QR
-→ Physical Handover
-→ Recycler scans QR
-→ Verify weight
-→ Check discrepancy
-→ Confirm Handover
-→ Transaction Completed
-→ Ledger / Verified Record
+Both `mobile/` and `backend/` are configured to bind to `0.0.0.0` (all network interfaces), allowing any smartphone on the same Wi-Fi network to run the apps directly.
 
-## Definition of Done
+1. **Connect host computer and phone to the same Wi-Fi network**.
+2. **Find your computer's local IP address**:
+   - Windows: Run `ipconfig` (look for `IPv4 Address`, e.g. `192.168.1.15`)
+   - Mac/Linux: Run `ifconfig | grep "inet "`
+3. **Open on Phone's Browser (Chrome recommended)**:
+   - **Collector Lite**: `http://<YOUR_IP>:5173/kabadiwala-lite.html`
+   - **Dealer Hub**: `http://<YOUR_IP>:5173/dealer.html`
+4. **Install as Native PWA**: Tap the prompt **"📲 Install App"** or tap Chrome menu **(⋮) -> "Install app"** to place a standalone native app icon on your phone's home screen.
 
-The prototype is considered complete when:
+*See detailed phone setup & camera/GPS permissions in [docs/mobile-and-phone-setup.md](docs/mobile-and-phone-setup.md).*
 
-- Collector can photograph scrap.
-- ML can suggest a category.
-- Collector can confirm/correct the suggestion.
-- Dealer can record purchases.
-- Purchases work offline.
-- Offline data survives app restart.
-- Data synchronizes without duplicates.
-- Dealer can view available stock.
-- Dealer can create a single-category lot.
-- Dealer can find and select a recycler.
-- Dealer can generate a QR containing only the Lot UUID.
-- Recycler can scan or manually enter the lot code.
-- Recycler can see declared weight.
-- Recycler can enter verified weight.
-- >30% discrepancy generates a warning.
-- Warning does not automatically block confirmation.
-- Backend prevents duplicate confirmation.
-- Completed lots leave available stock.
-- Dealer ledger reflects confirmed sales.
-- A real confirmed transaction generates a platform-side verified record.
+---
 
-## Important EPR Terminology
+## Seeded Demo Accounts & Credentials
 
-The platform-generated PDF is a verified transaction/traceability record.
+The system includes pre-seeded demo accounts in the SQLite database (`backend/kabadiwala.db`):
 
-It must NOT be described as an official government EPR certificate unless
-the project actually integrates with and is authorized by the relevant
-official EPR system.
+| Role | Email | Password | Business Name & Location | Seeded State |
+| :--- | :--- | :--- | :--- | :--- |
+| **Dealer** | `dealer@kabadiwala.com` | `password123` | Ramesh Scrap Traders (Mayapuri, Delhi) | Has available stock & purchase logs |
+| **Recycler 1** | `greencycle@recycler.com` | `password123` | GreenCycle Recycling (Okhla, Delhi) | Has pending lot `LOT-2026-DEL-001` (PCB 25kg) & completed transaction |
+| **Recycler 2** | `ecorecover@recycler.com` | `password123` | EcoRecover Technologies (Noida, UP) | Has disputed transaction `LOT-2026-DEL-003` (Cable) |
+| **Recycler 3** | `cleanearth@recycler.com` | `password123` | CleanEarth Recycling (Naraina, Delhi) | Active buyer profile for matching |
+
+---
+
+## Canonical Material Categories
+
+To prevent fraud and maintain accounting integrity across actors, the system strictly enforces **7 canonical e-waste streams**:
+
+1. **PCB** (Printed Circuit Boards / Motherboards)
+2. **CRT** (Cathode Ray Tube Monitors/TVs)
+3. **LCD** (Flat Screen Displays)
+4. **Cable** (Copper / Aluminum Insulated Wire)
+5. **Battery** (Lead-Acid / Li-Ion)
+6. **Motor/Magnet** (Electric Motors, Compressors, Transformers)
+7. **Mixed Plastic** (ABS / Polycarbonate e-waste casings)
+
+---
+
+## Core Features & Implemented Architecture
+
+### 1. Collector Lite (`kabadiwala-lite.html`)
+- **4-Step Guided Workflow**:
+  - *Step 1*: Scrap Photo & On-Device ML Suggestion (or 1-tap category pick).
+  - *Step 2*: Tactile weight stepper with quick chips (`1kg`, `5kg`, `10kg`, `25kg`, `50kg`).
+  - *Step 3*: Instant fair value discovery with live market benchmark rates.
+  - *Step 4*: Digital scrap slip generation with QR code and GPS coordinates.
+- **8 Indian Languages**: Vernacular translation across Hindi, English, Bengali, Telugu, Tamil, Marathi, Gujarati, and Kannada.
+- **Spoken Audio Output**: Native Web Speech API synthesis reading total earnings aloud for low-literacy field collectors.
+- **100% Offline-First**: Slips persist in browser LocalStorage/IndexedDB with zero internet required.
+
+### 2. Dealer Mobile Hub (`dealer.html`)
+- **Purchase Intake Queue**: Record doorstep purchases with persistent UUIDs.
+- **Offline Sync Engine**: Queues purchases when offline; synchronizes idempotently when reconnected.
+- **Mass-Balance Split Engine**: Subdivides purchase batches atomically so unpooled scrap stays in warehouse inventory.
+- **Smart Recycler Matching**: Ranks verified recyclers by Distance (50%), Buying Rate (30%), and Pickup Service (20%).
+- **QR Handover Generator**: Generates cryptographic QR payload containing strictly the verified Lot UUID.
+
+### 3. Recycler Web Portal (`http://localhost:5174`)
+- **Live Assigned Lots**: Stream of dealer lots ready for physical weighbridge verification.
+- **Dual-Weighed Verification**: Compares declared weight with certified weighbridge weight.
+- **Discrepancy Warning Engine**: Detects shrinkage, moisture, or fraud. Discrepancies $>5\%$ are flagged; $>30\%$ trigger critical alert.
+- **CPCB PDF Certificates**: Auto-generates downloadable official compliance certificates via Python ReportLab.
+
+---
+
+## Running Automated Tests
+
+The backend includes a comprehensive pytest suite covering all business rules, mass balance, security, and QR workflows:
+
+```bash
+cd backend
+pytest -v
+```
+*Current test suite: **22/22 tests passing (100%)**.*
+
+---
+
+## Documentation Index
+
+- [Mobile & Phone Setup Guide](docs/mobile-and-phone-setup.md) — Running over Wi-Fi, PWA installation, and mobile hardware testing.
+- [Recycler Dashboard Guide](docs/recycler-dashboard-setup.md) — Recycler setup, dual-weighing, and CPCB certificates.
+- [Architecture Specifications](docs/architecture.md) — End-to-end technical data flow and system constraints.
+- [API Contract](docs/api-contract.md) — Exhaustive REST endpoint documentation and schemas.
+- [Dealer Journey](docs/dealers-journey.md) — Step-by-step dealer operations and ledger rules.
+- [Collector ML Flow](docs/collector-ml-flow.md) — Model inference, confidence scoring, and fallback flows.

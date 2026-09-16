@@ -154,13 +154,19 @@ export const apiClient = {
   },
 
   async getMyLots() {
-    return await this.request('/lots/dealer/my-lots', { method: 'GET' });
+    return await this.request('/lots', { method: 'GET' });
   },
 
   async assignRecycler(lotId, recyclerId) {
     return await this.request(`/lots/${encodeURIComponent(lotId)}/assign-recycler`, {
-      method: 'POST',
+      method: 'PATCH',
       body: JSON.stringify({ recycler_id: recyclerId })
+    });
+  },
+
+  async cancelLot(lotId) {
+    return await this.request(`/lots/${encodeURIComponent(lotId)}/cancel`, {
+      method: 'POST'
     });
   },
 
@@ -181,5 +187,39 @@ export const apiClient = {
   // Ledger Endpoints
   async getDealerLedger() {
     return await this.request('/dealers/ledger', { method: 'GET' });
+  },
+
+  async downloadTransactionPdf(transactionId) {
+    const token = this.getToken();
+    const res = await fetch(`${this.baseUrl}/transactions/${encodeURIComponent(transactionId)}/pdf`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to download certificate: ${res.statusText}`);
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `verified_record_${transactionId.substring(0, 8)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  },
+
+  async disputeTransaction(transactionId, reason) {
+    return await this.request(`/transactions/${encodeURIComponent(transactionId)}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+  },
+
+  async acceptTransaction(transactionId) {
+    return await this.request(`/transactions/${encodeURIComponent(transactionId)}/accept`, {
+      method: 'POST'
+    });
   }
 };

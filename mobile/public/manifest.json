@@ -1,0 +1,20 @@
+{
+  "name": "Kabadiwala Lite — Scrap Classifier",
+  "short_name": "KabadiLite",
+  "description": "On-device ML scrap classification, instant fair value estimation, and digital scrap slips for door-to-door e-waste collectors.",
+  "start_url": "/kabadiwala-lite.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "categories": ["utilities", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

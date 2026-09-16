@@ -17,6 +17,8 @@ class LotStatus(str, Enum):
     POOLED = "POOLED"
     PENDING_HANDOVER = "PENDING_HANDOVER"
     COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    DISPUTED = "DISPUTED"
 
 class UserRole(str, Enum):
     DEALER = "DEALER"

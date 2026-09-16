@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.config import LotStatus
@@ -20,6 +20,8 @@ class Transaction(Base):
     rate_per_kg = Column(Float, nullable=False)
     total_payout = Column(Float, nullable=False)
     status = Column(String(50), default=LotStatus.COMPLETED.value, nullable=False)
+    disputed = Column(Boolean, default=False, nullable=False)
+    dispute_reason = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     notes = Column(String(500), nullable=True)
 

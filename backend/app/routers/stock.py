@@ -47,6 +47,8 @@ def get_dealer_stock(
             # Check lot status
             if p.lot and p.lot.status == LotStatus.COMPLETED.value:
                 stats[cat]["completed_weight"] += p.weight
+            elif p.lot and p.lot.status == LotStatus.CANCELLED.value:
+                stats[cat]["available_weight"] += p.weight
             else:
                 # POOLED or PENDING_HANDOVER
                 stats[cat]["pooled_weight"] += p.weight
@@ -67,5 +69,6 @@ def get_dealer_stock(
 
     return StockResponse(
         total_available_weight=round(total_avail, 2),
-        categories=categories_summary
+        categories=categories_summary,
+        items=categories_summary
     )

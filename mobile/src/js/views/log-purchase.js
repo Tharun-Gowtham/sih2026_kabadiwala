@@ -6,19 +6,24 @@ import { CANONICAL_CATEGORIES, generateUUID, formatCurrency, showToast } from '.
 import { saveLocalPurchase } from '../db.js';
 import { syncManager } from '../sync.js';
 import { apiClient } from '../api.js';
+import { i18n } from '../i18n.js';
+import { geoEngine } from '../geo.js';
 
 export function renderLogPurchaseView(container, navigateTo) {
   let selectedCategory = 'PCB';
   let photoDataUrl = null;
 
   const defaultCategory = CANONICAL_CATEGORIES[0];
+  const geo = geoEngine.currentPosition || geoEngine.fallbackCoords;
 
   container.innerHTML = `
     <div class="view-transition">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md);">
         <div>
           <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);">Log Scrap Purchase</h2>
-          <p style="font-size: 0.8rem; color: var(--text-secondary);">Offline-first scrap entry with UUID tracking</p>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">
+            Offline-first scrap entry • 📍 ${geoEngine.formatCoords(geo)}
+          </p>
         </div>
         <button class="btn btn-sm btn-outline" id="backHomeBtn">✕ Close</button>
       </div>
@@ -32,7 +37,7 @@ export function renderLogPurchaseView(container, navigateTo) {
               <div class="category-option ${cat.id === selectedCategory ? 'selected' : ''}" data-cat="${cat.id}">
                 <span class="cat-icon">${cat.icon}</span>
                 <div>
-                  <div class="cat-name">${cat.name}</div>
+                  <div class="cat-name">${i18n.getCategoryName(cat.id)}</div>
                   <div style="font-size: 0.72rem; color: var(--text-muted);">₹${cat.baseRate}/kg ref</div>
                 </div>
               </div>
@@ -223,6 +228,7 @@ export function renderLogPurchaseView(container, navigateTo) {
     const purchaseUUID = generateUUID();
     const nowIso = new Date().toISOString();
 
+    const geoNow = geoEngine.currentPosition || geoEngine.fallbackCoords;
     const purchaseRecord = {
       purchase_id: purchaseUUID,
       dealer_id: user?.user_id || '8c0f1234-5678-4abc-9def-0123456789ab',
@@ -232,6 +238,9 @@ export function renderLogPurchaseView(container, navigateTo) {
       unit_price: Number((price / weight).toFixed(2)),
       collector_reference: collectorRef || null,
       photo_url: photoDataUrl || null,
+      latitude: geoNow?.latitude || null,
+      longitude: geoNow?.longitude || null,
+      location_name: geoNow?.city || 'Field Stamped',
       sync_status: 'PENDING_SYNC',
       created_at: nowIso
     };

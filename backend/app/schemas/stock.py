@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 class StockCategorySummary(BaseModel):
@@ -12,3 +12,4 @@ class StockCategorySummary(BaseModel):
 class StockResponse(BaseModel):
     total_available_weight: float
     categories: List[StockCategorySummary]
+    items: Optional[List[StockCategorySummary]] = None

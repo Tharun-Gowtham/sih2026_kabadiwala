@@ -11,7 +11,7 @@ export async function renderLedgerView(container, navigateTo) {
   container.innerHTML = `
     <div class="view-loading-spinner">
       <div class="spinner"></div>
-      <p>Loading Dealer Ledger...</p>
+      <p>Loading financial ledger...</p>
     </div>
   `;
 
@@ -21,33 +21,36 @@ export async function renderLedgerView(container, navigateTo) {
   let transactions = [];
   let pendingLots = [];
   let purchases = [];
-
-  try {
-    const [ledgerData, localPurchases, localLots] = await Promise.all([
-      apiClient.getDealerLedger().catch(() => null),
-      getAllLocalPurchases().catch(() => []),
-      getLocalLots().catch(() => [])
-    ]);
-
-    if (ledgerData) {
-      totalSpent = ledgerData.total_spent_on_purchases || 0;
-      totalConfirmedSales = ledgerData.total_confirmed_sales || 0;
-      totalPendingLotWeight = ledgerData.total_pending_lot_weight || 0;
-      transactions = ledgerData.transactions || [];
-      pendingLots = ledgerData.pending_lots || [];
-      purchases = ledgerData.purchases || [];
-    } else {
-      // Local fallback calculation
-      purchases = localPurchases;
-      totalSpent = purchases.reduce((acc, p) => acc + Number(p.price || 0), 0);
-      pendingLots = localLots.filter(l => l.status !== 'COMPLETED');
-      totalPendingLotWeight = pendingLots.reduce((acc, l) => acc + Number(l.declared_weight || 0), 0);
-    }
-  } catch (err) {
-    console.warn('Error loading ledger:', err);
-  }
-
   let activeTab = 'summary';
+
+  async function loadDataAndRender() {
+    try {
+      const [ledgerData, localPurchases, localLots] = await Promise.all([
+        apiClient.getDealerLedger().catch(() => null),
+        getAllLocalPurchases().catch(() => []),
+        getLocalLots().catch(() => [])
+      ]);
+
+      if (ledgerData) {
+        totalSpent = ledgerData.total_spent_on_purchases || 0;
+        totalConfirmedSales = ledgerData.total_confirmed_sales || 0;
+        totalPendingLotWeight = ledgerData.total_pending_lot_weight || 0;
+        transactions = ledgerData.transactions || [];
+        pendingLots = (ledgerData.pending_lots || []).filter(l => l.status !== 'CANCELLED');
+        purchases = ledgerData.purchases || [];
+      } else {
+        // Local fallback calculation
+        purchases = localPurchases;
+        totalSpent = purchases.reduce((acc, p) => acc + Number(p.price || 0), 0);
+        pendingLots = localLots.filter(l => l.status !== 'COMPLETED' && l.status !== 'CANCELLED');
+        totalPendingLotWeight = pendingLots.reduce((acc, l) => acc + Number(l.declared_weight || 0), 0);
+      }
+    } catch (err) {
+      console.warn('Error loading ledger:', err);
+    }
+
+    renderLedgerContent();
+  }
 
   function renderLedgerContent() {
     container.innerHTML = `
@@ -68,15 +71,15 @@ export async function renderLedgerView(container, navigateTo) {
           </div>
         </div>
 
-        <!-- High-Level Financial Metrics Grid -->
-        <div class="stats-grid">
-          <div class="stat-box" style="border-left: 3px solid #10b981;">
+        <!-- Key Stats Summary Grid -->
+        <div class="stat-grid" style="margin-bottom: var(--space-md);">
+          <div class="stat-card">
             <span class="stat-label">Confirmed Earnings</span>
             <span class="stat-val" style="color: #34d399;">${formatCurrency(totalConfirmedSales)}</span>
-            <span class="stat-sub">${transactions.length} verified handovers</span>
+            <span class="stat-sub">${transactions.length} confirmed handovers</span>
           </div>
 
-          <div class="stat-box" style="border-left: 3px solid #f87171;">
+          <div class="stat-card">
             <span class="stat-label">Total Scrap Spent</span>
             <span class="stat-val" style="color: #f87171;">${formatCurrency(totalSpent)}</span>
             <span class="stat-sub">${purchases.length} recorded purchases</span>
@@ -121,6 +124,8 @@ export async function renderLedgerView(container, navigateTo) {
         renderLedgerContent();
       });
     });
+
+    attachActionListeners();
   }
 
   function renderTabContent() {
@@ -156,11 +161,12 @@ export async function renderLedgerView(container, navigateTo) {
   }
 
   function renderTransactionCard(t) {
+    const hasHighDiscrepancy = (t.discrepancy_percentage || 0) > 30;
     return `
-      <div class="tx-item-card" style="border-left: 3px solid #10b981;">
+      <div class="tx-item-card" style="border-left: 3px solid ${t.disputed ? '#ef4444' : '#10b981'};">
         <div class="tx-item-header">
           <div>
-            <span class="badge badge-success">Confirmed Sale</span>
+            <span class="badge ${t.disputed ? 'badge-danger' : 'badge-success'}">${t.disputed ? 'Disputed' : 'Confirmed Sale'}</span>
             <span style="font-weight: 700; font-size: 0.92rem; margin-left: 6px; color: var(--text-main);">${t.category}</span>
           </div>
           <span class="tx-amount positive">+${formatCurrency(t.total_payout)}</span>
@@ -172,6 +178,34 @@ export async function renderLedgerView(container, navigateTo) {
         <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between;">
           <span>Declared: ${formatWeight(t.declared_weight)} (Discrepancy: ${t.discrepancy_percentage || 0}%)</span>
           <span>${formatDate(t.timestamp)}</span>
+        </div>
+
+        ${t.disputed ? `
+          <div style="margin-top: 8px; font-size: 0.75rem; color: #fca5a5; background: rgba(239, 68, 68, 0.1); padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.2);">
+            <strong>Dispute Note:</strong> ${t.dispute_reason || 'Pending resolution with recycler'}
+          </div>
+        ` : ''}
+
+        ${hasHighDiscrepancy && !t.disputed ? `
+          <div style="margin-top: 8px; font-size: 0.75rem; color: #fde047; background: rgba(234, 179, 8, 0.1); padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(234, 179, 8, 0.2);">
+            ⚠️ High discrepancy (${t.discrepancy_percentage}%) detected. You may raise a dispute if incorrect.
+          </div>
+        ` : ''}
+
+        <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+          <button class="btn btn-sm btn-outline download-pdf-btn" data-txid="${t.transaction_id}" style="font-size: 0.72rem; padding: 4px 10px;">
+            📄 View Receipt (PDF)
+          </button>
+          ${hasHighDiscrepancy && !t.disputed ? `
+            <button class="btn btn-sm btn-outline dispute-tx-btn" data-txid="${t.transaction_id}" style="font-size: 0.72rem; padding: 4px 10px; color: #f87171; border-color: rgba(239, 68, 68, 0.4);">
+              ⚠️ Dispute Weight
+            </button>
+          ` : ''}
+          ${t.disputed ? `
+            <button class="btn btn-sm btn-outline accept-tx-btn" data-txid="${t.transaction_id}" style="font-size: 0.72rem; padding: 4px 10px; color: #34d399; border-color: rgba(52, 211, 153, 0.4);">
+              ✓ Resolve / Accept
+            </button>
+          ` : ''}
         </div>
       </div>
     `;
@@ -194,6 +228,11 @@ export async function renderLedgerView(container, navigateTo) {
         <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between;">
           <span>Recycler: ${l.recycler_name || 'Assigned Recycler'}</span>
           <span>${formatDate(l.created_at)}</span>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn btn-sm btn-outline cancel-lot-btn" data-lotid="${l.lot_id}" style="font-size: 0.72rem; padding: 4px 10px; color: #f87171; border-color: rgba(239, 68, 68, 0.4);">
+            ✕ Cancel & Return to Stock
+          </button>
         </div>
       </div>
     `;
@@ -220,5 +259,78 @@ export async function renderLedgerView(container, navigateTo) {
     `;
   }
 
-  renderLedgerContent();
+  function attachActionListeners() {
+    // PDF Receipt Downloads
+    container.querySelectorAll('.download-pdf-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const txId = btn.getAttribute('data-txid');
+        try {
+          btn.disabled = true;
+          const origText = btn.innerHTML;
+          btn.innerHTML = '⏳ Downloading...';
+          await apiClient.downloadTransactionPdf(txId);
+          showToast('Receipt PDF downloaded', 'success');
+          btn.innerHTML = origText;
+          btn.disabled = false;
+        } catch (err) {
+          showToast(err.message || 'Failed to download certificate', 'error');
+          btn.disabled = false;
+          btn.innerHTML = '📄 View Receipt (PDF)';
+        }
+      });
+    });
+
+    // Cancel Lot
+    container.querySelectorAll('.cancel-lot-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const lotId = btn.getAttribute('data-lotid');
+        if (!confirm('Cancel this lot? All pooled scrap will be returned to your available stock.')) return;
+        try {
+          btn.disabled = true;
+          btn.innerHTML = '⏳ Cancelling...';
+          await apiClient.cancelLot(lotId);
+          showToast('Lot cancelled! Stock restored to inventory.', 'success');
+          await loadDataAndRender();
+        } catch (err) {
+          showToast(err.message || 'Failed to cancel lot', 'error');
+          btn.disabled = false;
+          btn.innerHTML = '✕ Cancel & Return to Stock';
+        }
+      });
+    });
+
+    // Dispute Transaction
+    container.querySelectorAll('.dispute-tx-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const txId = btn.getAttribute('data-txid');
+        const reason = prompt('Please describe why the verified weight or payout is disputed:');
+        if (!reason || reason.trim().length < 3) return;
+        try {
+          btn.disabled = true;
+          await apiClient.disputeTransaction(txId, reason.trim());
+          showToast('Dispute recorded. Status flagged.', 'info');
+          await loadDataAndRender();
+        } catch (err) {
+          showToast(err.message || 'Failed to record dispute', 'error');
+        }
+      });
+    });
+
+    // Accept / Resolve Transaction
+    container.querySelectorAll('.accept-tx-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const txId = btn.getAttribute('data-txid');
+        try {
+          btn.disabled = true;
+          await apiClient.acceptTransaction(txId);
+          showToast('Transaction resolved and accepted.', 'success');
+          await loadDataAndRender();
+        } catch (err) {
+          showToast(err.message || 'Failed to resolve transaction', 'error');
+        }
+      });
+    });
+  }
+
+  await loadDataAndRender();
 }

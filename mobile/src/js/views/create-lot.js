@@ -17,9 +17,9 @@ export async function renderCreateLotView(container, navigateTo) {
 
   let stockItems = [];
   try {
-    const stockData = await apiClient.getStock().catch(() => null);
-    if (stockData && stockData.items) {
-      stockItems = stockData.items.filter(i => i.available_weight > 0);
+    const categoriesList = stockData ? (stockData.categories || stockData.items) : null;
+    if (categoriesList && Array.isArray(categoriesList)) {
+      stockItems = categoriesList.filter(i => i.available_weight > 0);
     }
   } catch (err) {
     console.warn('Error loading stock for lot:', err);

@@ -44,4 +44,5 @@ class RecyclerMatchResult(BaseModel):
     distance_km: float
     pickup_available: bool
     score: float
+    match_score: Optional[float] = None
     rank: int

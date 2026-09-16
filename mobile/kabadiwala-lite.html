@@ -7,10 +7,21 @@
   <meta name="description" content="Kabadiwala Lite — On-device ML scrap classification for door-to-door e-waste collectors. Snap a photo and get instant material identification.">
   <meta name="application-name" content="KabadiwalaLite">
 
+  <!-- PWA & Mobile Viewport Tags for Real Android Devices -->
+  <meta name="theme-color" content="#0b1120">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- PWA Manifest & App Icons -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
 
   <!-- Stylesheets — shared + collector-specific -->
   <link rel="stylesheet" href="/src/css/main.css">
@@ -21,6 +32,19 @@
 <body>
   <!-- Device Frame Simulator Container (for Desktop & Responsive Mobile) -->
   <div class="app-viewport-wrapper">
+    <!-- Desktop Demo App Switcher (Visible on Laptop/Desktop for Stakeholders) -->
+    <div class="desktop-demo-bar">
+      <div class="demo-bar-title">
+        <span>♻️</span>
+        <span>SIH 2026 Ecosystem</span>
+      </div>
+      <div class="demo-bar-links">
+        <a href="/kabadiwala-lite.html" class="demo-bar-link active">📱 Collector Lite</a>
+        <a href="/dealer.html" class="demo-bar-link">🏪 Dealer Hub</a>
+        <a href="http://localhost:5174/" target="_blank" class="demo-bar-link">🏭 Recycler Portal ↗</a>
+      </div>
+    </div>
+
     <div class="app-device-frame" id="appDeviceFrame">
 
       <!-- Top Status Bar — Collector Identity -->
@@ -29,11 +53,11 @@
           <div class="app-brand">
             <span class="app-brand-icon">♻️</span>
             <span class="app-brand-text">Kabadiwala</span>
-            <span class="app-role-badge" id="appRoleBadge" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">Collector Lite</span>
+            <span class="app-role-badge" id="appRoleBadge">Lite</span>
           </div>
         </div>
         <div class="app-topbar-right">
-          <!-- No role-switch button — this is the Kabadiwala Lite App -->
+          <!-- Populated dynamically with compact GPS & Language Picker -->
         </div>
       </header>
 
@@ -46,15 +70,23 @@
         </div>
       </main>
 
-      <!-- Collector Bottom Navigation Bar — Collector Only -->
+      <!-- Collector Bottom Navigation Bar — 4 Intuitive Tabs -->
       <nav class="app-bottom-nav collector-nav" id="collectorBottomNav">
         <button class="nav-item active" data-view="collector-lite">
           <span class="nav-icon">📷</span>
-          <span class="nav-label">Scrap Scanner</span>
+          <span class="nav-label">Scanner</span>
+        </button>
+        <button class="nav-item" data-view="price-board">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">Prices</span>
+        </button>
+        <button class="nav-item" data-view="collector-ledger">
+          <span class="nav-icon">📒</span>
+          <span class="nav-label">My Slips</span>
         </button>
         <button class="nav-item" data-view="collector-info">
           <span class="nav-icon">ℹ️</span>
-          <span class="nav-label">Material Guide</span>
+          <span class="nav-label">Guide</span>
         </button>
       </nav>
 
@@ -63,6 +95,29 @@
 
   <!-- Global Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Service Worker Registration for Offline Use on Real Android Devices -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            console.log('✓ ServiceWorker active for offline Android use. Scope:', reg.scope);
+          })
+          .catch((err) => {
+            console.warn('ServiceWorker registration error:', err);
+          });
+      });
+    }
+
+    // PWA Install Prompt Handler
+    window.pwaDeferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window.pwaDeferredPrompt = e;
+      console.log('✓ PWA install available');
+    });
+  </script>
 
   <!-- Kabadiwala Lite Application Entry Point -->
   <script type="module" src="/src/js/collector-app.js"></script>

@@ -408,3 +408,166 @@ def test_pdf_verified_record_download(client, dealer_token, recycler_token):
     assert pdf_res.headers["content-type"] == "application/pdf"
     assert len(pdf_res.content) > 100
     assert pdf_res.content.startswith(b"%PDF")
+
+# -------------------------------------------------------------
+# 19. Partial Purchase Splitting & Mass-Balance
+# -------------------------------------------------------------
+def test_partial_purchase_splitting_mass_balance(client, dealer_token):
+    # Log a single bulk purchase of 50kg CRT
+    purchase_res = client.post(
+        "/api/purchases",
+        json={"category": "CRT", "weight": 50.0, "price": 10000.0, "unit_price": 200.0},
+        headers=auth_header(dealer_token)
+    )
+    assert purchase_res.status_code == 201
+
+    # Dealer creates a lot for only 15kg CRT
+    lot_res = client.post(
+        "/api/lots",
+        json={"category": "CRT", "declared_weight": 15.0},
+        headers=auth_header(dealer_token)
+    )
+    assert lot_res.status_code == 201
+    assert lot_res.json()["declared_weight"] == 15.0
+
+    # Authoritative stock MUST show the remaining 35kg CRT still available!
+    stock_res = client.get("/api/stock", headers=auth_header(dealer_token))
+    assert stock_res.status_code == 200
+    stock_data = stock_res.json()
+    assert "items" in stock_data
+    crt_summary = next(c for c in stock_data["categories"] if c["category"] == "CRT")
+    assert crt_summary["available_weight"] == 35.0
+    assert crt_summary["pooled_weight"] >= 15.0
+
+    # Dealer can now successfully pool the remaining 35kg CRT!
+    lot2_res = client.post(
+        "/api/lots",
+        json={"category": "CRT", "declared_weight": 35.0},
+        headers=auth_header(dealer_token)
+    )
+    assert lot2_res.status_code == 201
+    assert lot2_res.json()["declared_weight"] == 35.0
+
+# -------------------------------------------------------------
+# 20. Lot Cancellation Restores Stock to Inventory
+# -------------------------------------------------------------
+def test_lot_cancellation_restores_stock(client, dealer_token):
+    # Log 20kg LCD purchase
+    client.post(
+        "/api/purchases",
+        json={"category": "LCD", "weight": 20.0, "price": 6000.0, "unit_price": 300.0},
+        headers=auth_header(dealer_token)
+    )
+
+    # Pool into a lot
+    lot_res = client.post(
+        "/api/lots",
+        json={"category": "LCD", "declared_weight": 20.0},
+        headers=auth_header(dealer_token)
+    )
+    assert lot_res.status_code == 201
+    lot_id = lot_res.json()["lot_id"]
+
+    # Available stock is now 0kg for LCD
+    stock_before = client.get("/api/stock", headers=auth_header(dealer_token)).json()
+    lcd_stock = next(c for c in stock_before["categories"] if c["category"] == "LCD")
+    assert lcd_stock["available_weight"] == 0.0
+
+    # Cancel the lot
+    cancel_res = client.post(f"/api/lots/{lot_id}/cancel", headers=auth_header(dealer_token))
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] == "CANCELLED"
+
+    # Available stock MUST be restored to 20kg!
+    stock_after = client.get("/api/stock", headers=auth_header(dealer_token)).json()
+    lcd_stock_after = next(c for c in stock_after["categories"] if c["category"] == "LCD")
+    assert lcd_stock_after["available_weight"] == 20.0
+
+# -------------------------------------------------------------
+# 21. Recycler Assignment Protocol (Both POST and PATCH) & Route Alias
+# -------------------------------------------------------------
+def test_recycler_assignment_methods_and_route_alias(client, dealer_token, recycler_token):
+    r1_id = client.get("/api/auth/me", headers=auth_header(recycler_token)).json()["id"]
+
+    # Test GET /lots/dealer/my-lots route alias
+    my_lots_res = client.get("/api/lots/dealer/my-lots", headers=auth_header(dealer_token))
+    assert my_lots_res.status_code == 200
+    assert isinstance(my_lots_res.json(), list)
+
+    # Log stock & create lot
+    client.post(
+        "/api/purchases",
+        json={"category": "Cable", "weight": 10.0, "price": 2000.0, "unit_price": 200.0},
+        headers=auth_header(dealer_token)
+    )
+    lot_res = client.post(
+        "/api/lots",
+        json={"category": "Cable", "declared_weight": 10.0},
+        headers=auth_header(dealer_token)
+    )
+    lot_id = lot_res.json()["lot_id"]
+
+    # Assign recycler using HTTP POST (previously failed with 405)
+    post_assign = client.post(
+        f"/api/lots/{lot_id}/assign-recycler",
+        json={"recycler_id": r1_id},
+        headers=auth_header(dealer_token)
+    )
+    assert post_assign.status_code == 200
+    assert post_assign.json()["recycler_id"] == r1_id
+    assert post_assign.json()["status"] == "PENDING_HANDOVER"
+
+    # Assign recycler using HTTP PATCH (standard REST)
+    patch_assign = client.patch(
+        f"/api/lots/{lot_id}/assign-recycler",
+        json={"recycler_id": r1_id},
+        headers=auth_header(dealer_token)
+    )
+    assert patch_assign.status_code == 200
+    assert patch_assign.json()["recycler_id"] == r1_id
+
+# -------------------------------------------------------------
+# 22. Dealer Weight Discrepancy Dispute & Recourse
+# -------------------------------------------------------------
+def test_dealer_weight_discrepancy_dispute_and_acceptance(client, dealer_token, recycler_token):
+    r1_id = client.get("/api/auth/me", headers=auth_header(recycler_token)).json()["id"]
+
+    client.post(
+        "/api/purchases",
+        json={"category": "Cable", "weight": 20.0, "price": 5000.0, "unit_price": 250.0},
+        headers=auth_header(dealer_token)
+    )
+    lot = client.post(
+        "/api/lots",
+        json={"category": "Cable", "declared_weight": 20.0, "recycler_id": r1_id},
+        headers=auth_header(dealer_token)
+    ).json()
+
+    # Recycler confirms with severe 50% discrepancy (20kg declared -> 10kg verified)
+    confirm_res = client.post(
+        f"/api/handover/confirm/{lot['lot_id']}",
+        json={"verified_weight": 10.0},
+        headers=auth_header(recycler_token)
+    )
+    assert confirm_res.status_code == 200
+    tx_id = confirm_res.json()["transaction_id"]
+
+    # Dealer disputes the transaction
+    dispute_res = client.post(
+        f"/api/transactions/{tx_id}/dispute",
+        json={"reason": "Weigh scale at recycler premise was faulty; batch verified at dispatch was 20kg."},
+        headers=auth_header(dealer_token)
+    )
+    assert dispute_res.status_code == 200
+    assert dispute_res.json()["disputed"] is True
+    assert "faulty" in dispute_res.json()["dispute_reason"]
+    assert dispute_res.json()["status"] == "DISPUTED"
+
+    # Dealer later accepts after renegotiation/resolution
+    accept_res = client.post(
+        f"/api/transactions/{tx_id}/accept",
+        headers=auth_header(dealer_token)
+    )
+    assert accept_res.status_code == 200
+    assert accept_res.json()["disputed"] is False
+    assert accept_res.json()["status"] == "COMPLETED"

@@ -104,6 +104,7 @@ def match_recyclers_for_category(
                 distance_km=item["distance_km"],
                 pickup_available=item["pickup_available"],
                 score=item["score"],
+                match_score=item["score"],
                 rank=rank
             )
         )
