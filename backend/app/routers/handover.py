@@ -9,6 +9,8 @@ from app.models.user import User
 from app.models.lot import Lot
 from app.models.recycler import RecyclerProfile
 from app.models.transaction import Transaction
+from app.models.batch import Batch, BatchLot
+from app.services.batch_service import complete_batch
 from app.schemas.transaction import (
     HandoverVerifyRequest,
     HandoverVerifyResponse,
@@ -140,6 +142,25 @@ def confirm_handover(
         db.add(tx)
         db.commit()
         db.refresh(tx)
+
+        # Auto-complete batch if all sibling lots in the same batch are COMPLETED
+        sibling_bl = db.query(BatchLot).filter(BatchLot.lot_id == lot_id).first()
+        if sibling_bl:
+            batch_id = sibling_bl.batch_id
+            sibling_lot_ids = [
+                bl.lot_id
+                for bl in db.query(BatchLot).filter(BatchLot.batch_id == batch_id).all()
+            ]
+            all_completed = all(
+                db.query(Lot).filter(Lot.lot_id == lid).first().status == LotStatus.COMPLETED.value
+                for lid in sibling_lot_ids
+            )
+            if all_completed:
+                try:
+                    complete_batch(db, batch_id)
+                except Exception:
+                    pass  # Don't fail the handover if batch completion fails
+
     except Exception as e:
         db.rollback()
         raise HTTPException(

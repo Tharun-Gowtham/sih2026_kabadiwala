@@ -19,6 +19,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
+        main: resolve(__dirname, 'index.html'),
         // Dealer App entry
         dealer: resolve(__dirname, 'dealer.html'),
         // Kabadiwala Lite App entry

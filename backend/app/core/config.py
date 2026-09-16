@@ -20,6 +20,14 @@ class LotStatus(str, Enum):
     CANCELLED = "CANCELLED"
     DISPUTED = "DISPUTED"
 
+class BatchStatus(str, Enum):
+    FORMING = "FORMING"
+    READY = "READY"
+    ASSIGNED = "ASSIGNED"
+    DISPATCHED = "DISPATCHED"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
 class UserRole(str, Enum):
     DEALER = "DEALER"
     RECYCLER = "RECYCLER"
@@ -45,5 +53,12 @@ class Settings(BaseSettings):
     # Strict business constants
     VALID_CATEGORIES: List[str] = [c.value for c in MaterialCategory]
     DISCREPANCY_THRESHOLD_PERCENT: float = 30.0
+
+    # Milk-Run Pooling constants
+    BATCH_THRESHOLD_KG: float = 20.0          # Min kg in a geohash cell to form a batch
+    BATCH_MAX_WAIT_HOURS: int = 48            # Starvation fallback — force-form if oldest lot >= N hours
+    GEOHASH_PRECISION: int = 6               # ~1.2km x 0.6km cells
+    AUTO_BATCH_ON_LOT_CREATE: bool = True    # Auto-trigger batch formation on new lot
+    BATCH_AVG_SPEED_KMH: float = 30.0       # Average van speed in km/h for ETA estimates
 
 settings = Settings()
