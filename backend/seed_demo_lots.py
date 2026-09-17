@@ -8,7 +8,8 @@ Populates realistic demonstration data into the active SQLite database (kabadiwa
 
 import uuid
 from datetime import datetime, timezone, timedelta
-from app.core.database import SessionLocal
+from app.core.database import Base, engine, SessionLocal
+from app.services.seeder import seed_demo_data
 from app.models.user import User
 from app.models.purchase import Purchase
 from app.models.lot import Lot
@@ -16,14 +17,19 @@ from app.models.transaction import Transaction
 from app.core.config import LotStatus, SyncStatus, MaterialCategory
 
 def seed_demo_lots():
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         dealer = db.query(User).filter(User.email == "dealer@kabadiwala.com").first()
+        if not dealer:
+            seed_demo_data(db)
+            dealer = db.query(User).filter(User.email == "dealer@kabadiwala.com").first()
+
         r1 = db.query(User).filter(User.email == "greencycle@recycler.com").first()
         r2 = db.query(User).filter(User.email == "ecorecover@recycler.com").first()
 
         if not dealer or not r1 or not r2:
-            print("Required users not found. Run main seeder first.")
+            print("Required users not found even after seeding.")
             return
 
         # Check if lots already exist

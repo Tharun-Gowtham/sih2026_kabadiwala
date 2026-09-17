@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.config import LotStatus
 
+
 class Lot(Base):
     __tablename__ = "lots"
 
@@ -17,8 +18,17 @@ class Lot(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    # Geolocation fields (for milk-run routing)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    geohash_cell = Column(String(20), nullable=True, index=True)
+
+    # Batch membership status: "unbatched" | "batched" | "dispatched" | None
+    batch_status = Column(String(20), nullable=True)
+
     # Relationships
     dealer = relationship("User", foreign_keys=[dealer_id], back_populates="dealer_lots")
     recycler = relationship("User", foreign_keys=[recycler_id], back_populates="recycler_lots")
     purchases = relationship("Purchase", back_populates="lot")
     transaction = relationship("Transaction", back_populates="lot", uselist=False)
+    batch_lots = relationship("BatchLot", back_populates="lot", cascade="all, delete-orphan")

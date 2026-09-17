@@ -5,12 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_dealer, get_current_user
-from app.core.config import LotStatus, UserRole
+from app.core.config import LotStatus, UserRole, settings
 from app.models.user import User
 from app.models.purchase import Purchase
 from app.models.lot import Lot
 from app.models.recycler import RecyclerProfile
 from app.schemas.lot import LotCreate, LotResponse, LotAssignRecycler
+from app.services.geohash_service import encode_geohash
+from app.services.batch_service import form_batches
 
 router = APIRouter(prefix="/lots", tags=["Lots"])
 
@@ -64,6 +66,14 @@ def create_lot(
         recycler_id = recycler.id
         initial_status = LotStatus.PENDING_HANDOVER.value
 
+    # Stamp geolocation if provided
+    geohash_cell = None
+    lot_lat = data.latitude
+    lot_lng = data.longitude
+    initial_batch_status = "unbatched"
+    if lot_lat is not None and lot_lng is not None:
+        geohash_cell = encode_geohash(lot_lat, lot_lng, precision=settings.GEOHASH_PRECISION)
+
     # 3. Create Lot
     lot = Lot(
         lot_id=lot_uuid,
@@ -72,6 +82,10 @@ def create_lot(
         category=category_val,
         declared_weight=data.declared_weight,
         status=initial_status,
+        latitude=lot_lat,
+        longitude=lot_lng,
+        geohash_cell=geohash_cell,
+        batch_status=initial_batch_status if geohash_cell else None,
         created_at=datetime.now(timezone.utc)
     )
     db.add(lot)
@@ -123,6 +137,13 @@ def create_lot(
     db.commit()
     db.refresh(lot)
 
+    # Auto-trigger batch formation if enabled and lot has coordinates
+    if settings.AUTO_BATCH_ON_LOT_CREATE and lot.geohash_cell:
+        try:
+            form_batches(db)
+        except Exception:
+            pass  # Don't fail lot creation if batch formation fails
+
     return LotResponse(
         lot_id=lot.lot_id,
         dealer_id=lot.dealer_id,
@@ -132,9 +153,14 @@ def create_lot(
         recycler_id=lot.recycler_id,
         recycler_name=lot.recycler.name if lot.recycler else None,
         status=lot.status,
+        latitude=lot.latitude,
+        longitude=lot.longitude,
+        geohash_cell=lot.geohash_cell,
+        batch_status=lot.batch_status,
         created_at=lot.created_at,
         updated_at=lot.updated_at
     )
+
 
 @router.get("", response_model=List[LotResponse])
 def list_dealer_lots(
@@ -157,6 +183,10 @@ def list_dealer_lots(
             recycler_id=l.recycler_id,
             recycler_name=l.recycler.name if l.recycler else None,
             status=l.status,
+            latitude=l.latitude,
+            longitude=l.longitude,
+            geohash_cell=l.geohash_cell,
+            batch_status=l.batch_status,
             created_at=l.created_at,
             updated_at=l.updated_at
         )
@@ -200,6 +230,10 @@ def get_lot(
         recycler_id=lot.recycler_id,
         recycler_name=lot.recycler.name if lot.recycler else None,
         status=lot.status,
+        latitude=lot.latitude,
+        longitude=lot.longitude,
+        geohash_cell=lot.geohash_cell,
+        batch_status=lot.batch_status,
         created_at=lot.created_at,
         updated_at=lot.updated_at
     )
@@ -259,6 +293,10 @@ def assign_recycler(
         recycler_id=lot.recycler_id,
         recycler_name=recycler.name,
         status=lot.status,
+        latitude=lot.latitude,
+        longitude=lot.longitude,
+        geohash_cell=lot.geohash_cell,
+        batch_status=lot.batch_status,
         created_at=lot.created_at,
         updated_at=lot.updated_at
     )
@@ -309,6 +347,10 @@ def cancel_lot(
         recycler_id=lot.recycler_id,
         recycler_name=lot.recycler.name if lot.recycler else None,
         status=lot.status,
+        latitude=lot.latitude,
+        longitude=lot.longitude,
+        geohash_cell=lot.geohash_cell,
+        batch_status=lot.batch_status,
         created_at=lot.created_at,
         updated_at=lot.updated_at
     )

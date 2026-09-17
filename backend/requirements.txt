@@ -9,3 +9,4 @@ python-multipart>=0.0.9
 fpdf2>=2.8.0
 pytest>=8.0.0
 httpx>=0.27.0
+pygeohash>=3.5.0

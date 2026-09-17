@@ -7,6 +7,7 @@ from app.routers.recyclers import router as recyclers_router
 from app.routers.handover import router as handover_router
 from app.routers.ledger import router as ledger_router
 from app.routers.records import router as records_router
+from app.routers.batches import router as batches_router
 
 __all__ = [
     "auth_router",
@@ -17,5 +18,6 @@ __all__ = [
     "recyclers_router",
     "handover_router",
     "ledger_router",
-    "records_router"
+    "records_router",
+    "batches_router",
 ]

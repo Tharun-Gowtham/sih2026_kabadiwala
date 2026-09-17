@@ -13,7 +13,8 @@ from app.routers import (
     recyclers_router,
     handover_router,
     ledger_router,
-    records_router
+    records_router,
+    batches_router
 )
 
 @asynccontextmanager
@@ -59,6 +60,7 @@ app.include_router(recyclers_router, prefix=settings.API_V1_STR)
 app.include_router(handover_router, prefix=settings.API_V1_STR)
 app.include_router(ledger_router, prefix=settings.API_V1_STR)
 app.include_router(records_router, prefix=settings.API_V1_STR)
+app.include_router(batches_router, prefix=settings.API_V1_STR)
 
 @app.get("/", tags=["Health"])
 def root():
