@@ -16,7 +16,7 @@ import { MARKET_PRICE_DATA } from './price-board.js';
 import { saveCollectorSlip, showSlipQrModal } from './collector-ledger.js';
 import { renderCollectorRecyclersModal } from './collector-recyclers.js';
 
-export function renderCollectorLiteView(container, navigateTo) {
+export function renderCollectorLiteView(container, navigateTo, playWelcome = false) {
   let activeCategory = 'PCB';
   let currentWeight = 5.0; // Default 5 kg
   let currentStep = 1; // 1 | 2 | 3 | 4
@@ -24,6 +24,13 @@ export function renderCollectorLiteView(container, navigateTo) {
   let currentPrediction = null;
 
   const t = (k, p) => i18n.t(k, p);
+
+  // Voice helpers — language-aware spoken phrases
+  function speakHindi(hindiText, englishText, onEnd) {
+    const lang = i18n.getLang();
+    const text = lang === 'hi' ? hindiText : englishText;
+    i18n.speak(text, { onEnd });
+  }
 
   container.innerHTML = `
     <div class="view-transition" style="padding-bottom: var(--space-xl);">
@@ -251,6 +258,13 @@ export function renderCollectorLiteView(container, navigateTo) {
     }
   });
 
+  // Voice: speak Namaste only when first entering the app
+  if (playWelcome) {
+    setTimeout(() => {
+      speakHindi('नमस्ते।', 'Namaste.');
+    }, 600);
+  }
+
   // Calculate & update valuation
   function recalculateValuation() {
     const w = Math.max(0.1, parseFloat(weightInput.value) || 1.0);
@@ -371,9 +385,15 @@ export function renderCollectorLiteView(container, navigateTo) {
     renderCollectorRecyclersModal(activeCategory);
   });
 
-  // Photo handlers
-  snapBtn?.addEventListener('click', () => cameraInput.click());
-  pickBtn?.addEventListener('click', () => galleryInput.click());
+  // Photo handlers — speak prompt when user taps snap or pick
+  snapBtn?.addEventListener('click', () => {
+    speakHindi('कृपया कबाड़ की साफ़ फोटो लें।', 'Please take a clear photo of the scrap.');
+    cameraInput.click();
+  });
+  pickBtn?.addEventListener('click', () => {
+    speakHindi('कृपया कबाड़ की साफ़ फोटो लें।', 'Please take a clear photo of the scrap.');
+    galleryInput.click();
+  });
 
   cameraInput?.addEventListener('change', handleImageSelection);
   galleryInput?.addEventListener('change', handleImageSelection);
@@ -512,6 +532,16 @@ export function renderCollectorLiteView(container, navigateTo) {
         `}
       </div>
     `;
+
+    // Voice: ask user to confirm the detected category
+    if (pred.isConfident) {
+      setTimeout(() => {
+        speakHindi(
+          `${catName} पहचाना गया। क्या यह सही है?`,
+          `${catName} detected. Is this correct?`
+        );
+      }, 300);
+    }
 
     // Confirm button
     mlContainer.querySelector('#confirmMlBtn')?.addEventListener('click', () => {
