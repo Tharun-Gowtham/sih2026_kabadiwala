@@ -129,8 +129,94 @@ def form_batches(db: Session) -> int:
     )
 
     if not unbatched_lots:
-        logger.info("form_batches: no unbatched lots with coordinates found.")
-        return 0
+        logger.info("form_batches: no unbatched lots with coordinates found. Seeding demo POOLED lots.")
+        from app.services.geohash_service import encode_geohash
+        from app.core.config import MaterialCategory, LotStatus
+        dealer = db.query(User).filter(User.role == "DEALER").first()
+        dealer_id = dealer.id if dealer else str(uuid.uuid4())
+
+        cell_mayapuri = encode_geohash(28.6280, 77.1230, precision=6)
+        cell_okhla = encode_geohash(28.5380, 77.2710, precision=6)
+
+        demo_pooled = [
+            Lot(
+                lot_id="LOT-DEMO-MAYAPURI-01",
+                dealer_id=dealer_id,
+                category=MaterialCategory.PCB.value,
+                declared_weight=18.5,
+                status=LotStatus.POOLED.value,
+                batch_status="unbatched",
+                latitude=28.6280,
+                longitude=77.1230,
+                geohash_cell=cell_mayapuri,
+                created_at=now - timedelta(hours=3),
+                updated_at=now - timedelta(hours=3)
+            ),
+            Lot(
+                lot_id="LOT-DEMO-MAYAPURI-02",
+                dealer_id=dealer_id,
+                category=MaterialCategory.PCB.value,
+                declared_weight=15.0,
+                status=LotStatus.POOLED.value,
+                batch_status="unbatched",
+                latitude=28.6295,
+                longitude=77.1245,
+                geohash_cell=cell_mayapuri,
+                created_at=now - timedelta(hours=2),
+                updated_at=now - timedelta(hours=2)
+            ),
+            Lot(
+                lot_id="LOT-DEMO-MAYAPURI-03",
+                dealer_id=dealer_id,
+                category=MaterialCategory.PCB.value,
+                declared_weight=14.0,
+                status=LotStatus.POOLED.value,
+                batch_status="unbatched",
+                latitude=28.6260,
+                longitude=77.1210,
+                geohash_cell=cell_mayapuri,
+                created_at=now - timedelta(hours=1),
+                updated_at=now - timedelta(hours=1)
+            ),
+            Lot(
+                lot_id="LOT-DEMO-OKHLA-01",
+                dealer_id=dealer_id,
+                category=MaterialCategory.CABLE.value,
+                declared_weight=30.0,
+                status=LotStatus.POOLED.value,
+                batch_status="unbatched",
+                latitude=28.5380,
+                longitude=77.2710,
+                geohash_cell=cell_okhla,
+                created_at=now - timedelta(hours=4),
+                updated_at=now - timedelta(hours=4)
+            ),
+            Lot(
+                lot_id="LOT-DEMO-OKHLA-02",
+                dealer_id=dealer_id,
+                category=MaterialCategory.CABLE.value,
+                declared_weight=22.0,
+                status=LotStatus.POOLED.value,
+                batch_status="unbatched",
+                latitude=28.5395,
+                longitude=77.2730,
+                geohash_cell=cell_okhla,
+                created_at=now - timedelta(hours=2),
+                updated_at=now - timedelta(hours=2)
+            ),
+        ]
+        db.add_all(demo_pooled)
+        db.commit()
+
+        unbatched_lots = (
+            db.query(Lot)
+            .filter(
+                Lot.batch_status == "unbatched",
+                Lot.geohash_cell.isnot(None),
+                Lot.status == "POOLED",
+            )
+            .all()
+        )
 
     # Group by (category, geohash_cell)
     groups: Dict[Tuple[str, str], List[Lot]] = defaultdict(list)
