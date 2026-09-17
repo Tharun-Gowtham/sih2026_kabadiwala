@@ -3,6 +3,8 @@ from app.services.pdf_generator import generate_transaction_pdf
 from app.services.seeder import seed_demo_data
 from app.services import batch_service
 from app.services.batch_service import form_batches, assign_recycler_to_batch, dispatch_batch, cancel_batch_assignment, complete_batch, compute_route_distance_km
+from app.services import audit_service
+from app.services import fraud_detection
 
 __all__ = [
     "match_recyclers_for_category",
@@ -16,4 +18,7 @@ __all__ = [
     "cancel_batch_assignment",
     "complete_batch",
     "compute_route_distance_km",
+    "audit_service",
+    "fraud_detection",
 ]
+
