@@ -1,12 +1,15 @@
 /**
  * Kabadiwala Connect — Collector ML Classifier Engine
  * Strictly handles the 7 Canonical Categories adhering to docs/collector-ml-flow.md
+ * 
+ * Uses TFLite 50-class model as primary, falls back to heuristic classifier.
  */
 
 import { CANONICAL_CATEGORIES } from './utils.js';
+import { classifyWithTFLite, isModelLoaded, getLoadStatus, warmup } from './ml-classifier-tflite.js';
 
 export const ML_CONFIG = {
-  CONFIDENCE_THRESHOLD: 0.70, // 70% confidence requirement
+  CONFIDENCE_THRESHOLD: 0.70,
   CATEGORIES: [
     'PCB',
     'CRT',
@@ -69,82 +72,118 @@ export const ML_CONFIG = {
   }
 };
 
-/**
- * Classifies an image element / canvas / file on-device
- * Analyzes visual pixel statistics (color histograms, edge density, luminance)
- * to output realistic, deterministic predictions for the 7 categories.
- */
-export async function classifyScrapImage(imageElementOrFile) {
-  // If file/blob passed, create image element
-  let img = imageElementOrFile;
-  if (imageElementOrFile instanceof Blob || imageElementOrFile instanceof File) {
-    img = await new Promise((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = reject;
-      el.src = URL.createObjectURL(imageElementOrFile);
+let useHeuristicFallback = false;
+
+function heuristicClassify(imageElementOrFile) {
+  return new Promise((resolve) => {
+    let img = imageElementOrFile;
+    if (imageElementOrFile instanceof Blob || imageElementOrFile instanceof File) {
+      img = new Promise((resolveImg, rejectImg) => {
+        const el = new Image();
+        el.onload = () => resolveImg(el);
+        el.onerror = rejectImg;
+        el.src = URL.createObjectURL(imageElementOrFile);
+      });
+    }
+
+    Promise.resolve(img).then((imgEl) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, 64, 64);
+      const imgData = ctx.getImageData(0, 0, 64, 64).data;
+
+      let greenPixels = 0, darkPixels = 0, bluePixels = 0, copperPixels = 0;
+
+      for (let i = 0; i < imgData.length; i += 4) {
+        const r = imgData[i];
+        const g = imgData[i + 1];
+        const b = imgData[i + 2];
+
+        if (g > r * 1.2 && g > b * 1.2 && g > 60) greenPixels++;
+        if (r < 60 && g < 60 && b < 60) darkPixels++;
+        if (b > r && b > g && b > 80) bluePixels++;
+        if (r > 120 && g > 60 && b < 50) copperPixels++;
+      }
+
+      const totalPixels = 64 * 64;
+      const greenRatio = greenPixels / totalPixels;
+      const darkRatio = darkPixels / totalPixels;
+      const copperRatio = copperPixels / totalPixels;
+
+      let category = 'PCB';
+      let rawConfidence = 0.88;
+
+      if (greenRatio > 0.15) {
+        category = 'PCB';
+        rawConfidence = 0.85 + Math.min(greenRatio * 0.5, 0.12);
+      } else if (copperRatio > 0.12) {
+        category = Math.random() > 0.4 ? 'Cable' : 'Motor/Magnet';
+        rawConfidence = 0.82 + Math.min(copperRatio * 0.4, 0.14);
+      } else if (darkRatio > 0.45) {
+        category = Math.random() > 0.5 ? 'LCD' : 'Battery';
+        rawConfidence = 0.78 + Math.min(darkRatio * 0.2, 0.15);
+      } else {
+        const cats = ML_CONFIG.CATEGORIES;
+        category = cats[Math.floor(Math.random() * cats.length)];
+        rawConfidence = 0.65 + Math.random() * 0.28;
+      }
+
+      const isConfident = rawConfidence >= ML_CONFIG.CONFIDENCE_THRESHOLD;
+
+      resolve({
+        category,
+        confidence: Number(rawConfidence.toFixed(2)),
+        confidencePercentage: Math.round(rawConfidence * 100),
+        isConfident,
+        threshold: ML_CONFIG.CONFIDENCE_THRESHOLD,
+        materialInfo: ML_CONFIG.MATERIAL_INFO[category] || null,
+        source: 'heuristic',
+        categoryBreakdown: {},
+        top50Predictions: []
+      });
     });
+  });
+}
+
+export async function classifyScrapImage(imageElementOrFile) {
+  if (!useHeuristicFallback && isModelLoaded()) {
+    try {
+      const result = await classifyWithTFLite(imageElementOrFile);
+      return {
+        ...result,
+        source: 'tflite',
+        materialInfo: ML_CONFIG.MATERIAL_INFO[result.category] || null
+      };
+    } catch (err) {
+      console.warn('[ML] TFLite classification failed, falling back to heuristic:', err);
+      useHeuristicFallback = true;
+    }
   }
 
-  // Draw to offscreen canvas to analyze pixel data
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, 64, 64);
-  const imgData = ctx.getImageData(0, 0, 64, 64).data;
+  return heuristicClassify(imageElementOrFile);
+}
 
-  // Extract color & texture features
-  let rSum = 0, gSum = 0, bSum = 0;
-  let greenPixels = 0, darkPixels = 0, bluePixels = 0, copperPixels = 0;
-
-  for (let i = 0; i < imgData.length; i += 4) {
-    const r = imgData[i];
-    const g = imgData[i + 1];
-    const b = imgData[i + 2];
-    rSum += r;
-    gSum += g;
-    bSum += b;
-
-    if (g > r * 1.2 && g > b * 1.2 && g > 60) greenPixels++; // Green solder mask -> PCB
-    if (r < 60 && g < 60 && b < 60) darkPixels++; // Dark panel -> LCD / CRT
-    if (b > r && b > g && b > 80) bluePixels++; // Blue casing
-    if (r > 120 && g > 60 && b < 50) copperPixels++; // Reddish copper -> Cable/Motor
-  }
-
-  const totalPixels = 64 * 64;
-  const greenRatio = greenPixels / totalPixels;
-  const darkRatio = darkPixels / totalPixels;
-  const copperRatio = copperPixels / totalPixels;
-
-  // Match dominant features to categories
-  let category = 'PCB';
-  let rawConfidence = 0.88;
-
-  if (greenRatio > 0.15) {
-    category = 'PCB';
-    rawConfidence = 0.85 + Math.min(greenRatio * 0.5, 0.12);
-  } else if (copperRatio > 0.12) {
-    category = Math.random() > 0.4 ? 'Cable' : 'Motor/Magnet';
-    rawConfidence = 0.82 + Math.min(copperRatio * 0.4, 0.14);
-  } else if (darkRatio > 0.45) {
-    category = Math.random() > 0.5 ? 'LCD' : 'Battery';
-    rawConfidence = 0.78 + Math.min(darkRatio * 0.2, 0.15);
-  } else {
-    // Default fallback cycle
-    const cats = ML_CONFIG.CATEGORIES;
-    category = cats[Math.floor(Math.random() * cats.length)];
-    rawConfidence = 0.65 + Math.random() * 0.28;
-  }
-
-  const isConfident = rawConfidence >= ML_CONFIG.CONFIDENCE_THRESHOLD;
-
+export function getModelStatus() {
   return {
-    category,
-    confidence: Number(rawConfidence.toFixed(2)),
-    confidencePercentage: Math.round(rawConfidence * 100),
-    isConfident,
-    threshold: ML_CONFIG.CONFIDENCE_THRESHOLD,
-    materialInfo: ML_CONFIG.MATERIAL_INFO[category] || null
+    ...getLoadStatus(),
+    usingFallback: useHeuristicFallback
   };
+}
+
+export async function initializeModel() {
+  try {
+    await warmup();
+    useHeuristicFallback = false;
+    return true;
+  } catch (err) {
+    console.warn('[ML] Model initialization failed, will use heuristic:', err);
+    useHeuristicFallback = true;
+    return false;
+  }
+}
+
+export function forceHeuristicFallback(force = true) {
+  useHeuristicFallback = force;
 }
