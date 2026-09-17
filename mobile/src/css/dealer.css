@@ -1,0 +1,352 @@
+/* ==========================================================================
+   Kabadiwala Connect — Dealer Screens CSS
+   ========================================================================== */
+
+/* Quick Actions Grid */
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: var(--space-md);
+}
+
+.action-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+}
+
+.action-card:hover {
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.action-card:active {
+  transform: scale(0.97);
+}
+
+.action-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: rgba(16, 185, 129, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+.action-card.accent .action-card-icon {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.action-card.info .action-card-icon {
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.action-card.purple .action-card-icon {
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.action-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.action-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Stock Category List */
+.stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stock-item-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stock-item-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.stock-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stock-cat-icon {
+  font-size: 1.6rem;
+  width: 44px;
+  height: 44px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stock-cat-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.stock-cat-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.stock-item-right {
+  text-align: right;
+}
+
+.stock-qty {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #34d399;
+  font-family: var(--font-mono);
+}
+
+.stock-val {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* Recycler Matching Cards */
+.recycler-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recycler-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.recycler-card:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.recycler-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.recycler-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.recycler-distance {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.recycler-score-badge {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(56, 189, 248, 0.2));
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+.recycler-metrics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.metric-value.rate {
+  color: #fbbf24;
+}
+
+/* QR Screen Styles */
+.qr-container-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #0f172a;
+  box-shadow: var(--shadow-md), 0 0 30px rgba(16, 185, 129, 0.3);
+  margin: var(--space-md) 0;
+  text-align: center;
+}
+
+.qr-canvas-wrapper {
+  margin: 12px 0;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: 12px;
+}
+
+.qr-uuid-display {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #64748b;
+  word-break: break-all;
+  max-width: 280px;
+  margin-top: 8px;
+}
+
+.qr-fallback-box {
+  background: #f1f5f9;
+  border: 1px dashed #94a3b8;
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  margin-top: 10px;
+}
+
+.qr-fallback-label {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.qr-fallback-code {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: #0f172a;
+  letter-spacing: 2px;
+}
+
+/* Ledger List & Tabs */
+.ledger-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.ledger-tab-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.ledger-tab-btn.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.tx-item-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tx-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tx-item-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.tx-amount.positive {
+  color: #34d399;
+  font-weight: 800;
+}
+
+.tx-amount.negative {
+  color: #f87171;
+  font-weight: 800;
+}
+
+/* Warning Banner for Pending Lots */
+.ledger-warning-box {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: var(--space-md);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: #fde68a;
+  line-height: 1.4;
+}

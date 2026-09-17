@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kabadiwala Connect — Digital Traceability Platform</title>
+  <meta name="description" content="Kabadiwala Connect — Digital traceability and workflow platform connecting door-to-door collectors, scrap dealers, and authorized recyclers.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #0b1120;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 1rem;
+    }
+    .launcher {
+      text-align: center;
+      max-width: 480px;
+      width: 100%;
+    }
+    .launcher-brand { font-size: 2.8rem; margin-bottom: 0.25rem; }
+    .launcher-title {
+      font-size: 1.65rem;
+      font-weight: 900;
+      color: #f8fafc;
+      letter-spacing: -0.5px;
+    }
+    .launcher-tagline {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #10b981;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+      margin-bottom: 0.4rem;
+    }
+    .launcher-subtitle {
+      font-size: 0.84rem;
+      color: #94a3b8;
+      line-height: 1.4;
+      margin-bottom: 1.8rem;
+    }
+    .app-cards { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+    .app-card {
+      display: block;
+      text-decoration: none;
+      padding: 1.4rem 1.25rem;
+      border-radius: 18px;
+      border: 1.5px solid;
+      text-align: left;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .app-card:hover { transform: translateY(-2px); }
+
+    /* Collector Lite Card */
+    .app-card.collector {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .app-card.collector:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.2);
+    }
+    .app-card.collector .card-name { color: #38bdf8; }
+
+    /* Dealer Card */
+    .app-card.dealer {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+    .app-card.dealer:hover {
+      border-color: #34d399;
+      box-shadow: 0 10px 30px rgba(52, 211, 153, 0.2);
+    }
+    .app-card.dealer .card-name { color: #34d399; }
+
+    /* Recycler Card */
+    .app-card.recycler {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+    .app-card.recycler:hover {
+      border-color: #fbbf24;
+      box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
+    }
+    .app-card.recycler .card-name { color: #fbbf24; }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .card-icon-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-icon { font-size: 2rem; }
+    .card-name { font-size: 1.15rem; font-weight: 800; }
+    .card-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      letter-spacing: 0.3px;
+    }
+    .badge-blue { background: rgba(14, 165, 233, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+
+    .card-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.45; margin-bottom: 0.75rem; }
+    .feature-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .feature-pill {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 6px;
+      padding: 2px 7px;
+    }
+
+    /* Traceability Flow Ribbon */
+    .flow-ribbon {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 16px;
+      padding: 14px 16px;
+      text-align: left;
+    }
+    .flow-title {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .flow-step { text-align: center; }
+    .flow-arrow { color: #64748b; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="launcher">
+    <div class="launcher-brand">♻️</div>
+    <h1 class="launcher-title">Kabadiwala Connect</h1>
+    <div class="launcher-tagline">SIH 2026 • Digital E-Waste Traceability</div>
+    <div class="launcher-subtitle">
+      Formalizing the informal recycling chain with on-device ML, offline synchronization &amp; tamper-proof digital handovers.
+    </div>
+
+    <div class="app-cards">
+      <!-- 1. Collector Lite -->
+      <a href="/kabadiwala-lite.html" class="app-card collector">
+        <div class="card-top">
+          <div class="card-icon-wrap">
+            <span class="card-icon">📷</span>
+            <div class="card-name">Kabadiwala Lite</div>
+          </div>
+          <span class="card-badge badge-blue">Field App</span>
+        </div>
+        <div class="card-desc">
+          Designed for low-end Android phones. 4-step guided flow with camera ML scrap detection, spoken voice assist in 8 languages, instant ₹ value calculation, and digital slips.
+        </div>
+        <div class="feature-pills">
+          <span class="feature-pill">🤖 On-Device ML</span>
+          <span class="feature-pill">🗣️ 8 Languages (Voice)</span>
+          <span class="feature-pill">⚖️ Weight &amp; ₹ Value</span>
+          <span class="feature-pill">📍 GPS Stamped</span>
+          <span class="feature-pill">📱 Digital Slips</span>
+        </div>
+      </a>
+
+      <!-- 2. Dealer App -->
+      <a href="/dealer.html" class="app-card dealer">
+        <div class="card-top">
+          <div class="card-icon-wrap">
+            <span class="card-icon">🏪</span>
+            <div class="card-name">Dealer App</div>
+          </div>
+          <span class="card-badge badge-green">Aggregator Hub</span>
+        </div>
+        <div class="card-desc">
+          Offline-first operational suite for scrap shop owners. Log purchases in IndexedDB, track 7 material categories, pool single-category lots, match recyclers, and generate QR handovers.
+        </div>
+        <div class="feature-pills">
+          <span class="feature-pill">⚡ Offline-First (IndexedDB)</span>
+          <span class="feature-pill">📦 Stock Manager</span>
+          <span class="feature-pill">🏷️ Lot Pooling</span>
+          <span class="feature-pill">🎯 Smart Recycler Match</span>
+          <span class="feature-pill">📱 QR Handover</span>
+          <span class="feature-pill">📒 Ledger</span>
+        </div>
+      </a>
+
+      <!-- 3. Recycler Portal Info -->
+      <a href="http://localhost:5174/" target="_blank" class="app-card recycler">
+        <div class="card-top">
+          <div class="card-icon-wrap">
+            <span class="card-icon">🏭</span>
+            <div class="card-name">Recycler Portal ↗</div>
+          </div>
+          <span class="card-badge badge-amber">Authorized Plant</span>
+        </div>
+        <div class="card-desc">
+          Formal plant interface for authorized recyclers. Scan dealer QR code, perform dual-weight physical verification, detect &gt;30% weight discrepancies, and auto-generate verifiable EPR PDF certificates.
+        </div>
+        <div class="feature-pills">
+          <span class="feature-pill">🔍 QR Lookup</span>
+          <span class="feature-pill">⚖️ Dual Weight Verify</span>
+          <span class="feature-pill">⚠️ Discrepancy Detection (&gt;30%)</span>
+          <span class="feature-pill">📄 EPR Traceability PDF</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Traceability Chain Ribbon -->
+    <div class="flow-ribbon">
+      <div class="flow-title">Verified Chain of Custody Flow</div>
+      <div class="flow-steps">
+        <div class="flow-step">📷 Collector</div>
+        <span class="flow-arrow">➔</span>
+        <div class="flow-step">🏪 Dealer</div>
+        <span class="flow-arrow">➔</span>
+        <div class="flow-step">🏭 Recycler</div>
+        <span class="flow-arrow">➔</span>
+        <div class="flow-step">📄 Verified PDF</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
