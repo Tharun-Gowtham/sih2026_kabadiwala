@@ -224,9 +224,19 @@ export function renderCollectorLedgerView(container, navigateTo) {
   container.querySelector('#emptyScanBtn')?.addEventListener('click', () => navigateTo('collector-lite'));
 
   // Voice narration of earnings
-  container.querySelector('#speakLedgerBtn')?.addEventListener('click', () => {
-    const text = `Today you have collected ${totalWeight.toFixed(1)} kilograms of e-waste scrap across ${slips.length} slips, with total estimated fair value of ${totalEstimatedValue} rupees.`;
-    i18n.speak(text);
+  container.querySelector('#speakLedgerBtn')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const lang = i18n.getLang();
+    
+    const text = lang === 'hi'
+      ? `आज आपने ${slips.length} पर्चियों में ${totalWeight.toFixed(1)} किलो ई-कचरा कबाड़ इकट्ठा किया है, जिसकी कुल अनुमानित कीमत ${totalEstimatedValue} रुपये है।`
+      : `Today you have collected ${totalWeight.toFixed(1)} kilograms of e-waste scrap across ${slips.length} slips, with total estimated fair value of ${totalEstimatedValue} rupees.`;
+      
+    btn.classList.add('pulse-anim');
+    i18n.speak(text, {
+      onEnd: () => btn.classList.remove('pulse-anim'),
+      onError: () => btn.classList.remove('pulse-anim')
+    });
   });
 
   // Clear all
