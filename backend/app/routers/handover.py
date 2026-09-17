@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.core.database import get_db
 from app.core.dependencies import get_current_recycler, get_current_user
 from app.core.config import LotStatus, UserRole, settings
@@ -11,6 +12,8 @@ from app.models.recycler import RecyclerProfile
 from app.models.transaction import Transaction
 from app.models.batch import Batch, BatchLot
 from app.services.batch_service import complete_batch
+from app.services.audit_service import log_action
+from app.services.fraud_detection import update_dealer_trust, create_fraud_alert
 from app.schemas.transaction import (
     HandoverVerifyRequest,
     HandoverVerifyResponse,
@@ -47,9 +50,16 @@ def verify_weight(
     has_warning = disc_pct > settings.DISCREPANCY_THRESHOLD_PERCENT
 
     warning_msg = None
-    if has_warning:
+    if disc_pct > settings.CRITICAL_DISCREPANCY_PERCENT:
         warning_msg = (
-            f"Weight discrepancy detected: {disc_pct:.1f}% difference between declared ({declared:.2f} kg) "
+            f"⛔ CRITICAL: Weight discrepancy of {disc_pct:.1f}% exceeds the critical threshold "
+            f"of {settings.CRITICAL_DISCREPANCY_PERCENT:.0f}%. Confirmation will be BLOCKED. "
+            f"Declared: {declared:.2f} kg, Verified: {verified:.2f} kg. "
+            "An admin override is required to proceed."
+        )
+    elif has_warning:
+        warning_msg = (
+            f"⚠️ Weight discrepancy detected: {disc_pct:.1f}% difference between declared ({declared:.2f} kg) "
             f"and verified ({verified:.2f} kg). Threshold is {settings.DISCREPANCY_THRESHOLD_PERCENT:.0f}%. "
             "Confirmation remains permitted after inspection."
         )
@@ -68,13 +78,19 @@ def verify_weight(
 def confirm_handover(
     lot_id: str,
     data: ConfirmHandoverRequest,
+    request: Request,
     current_recycler: User = Depends(get_current_recycler),
     db: Session = Depends(get_db)
 ):
     """
-    CRITICAL SERVER-SIDE OPERATION:
-    Validates recycler authorization, lot status, prevents duplicates,
-    calculates discrepancy & payout, and atomically commits transaction.
+    CRITICAL SERVER-SIDE OPERATION with FRAUD PREVENTION:
+    1. Validates recycler authorization and lot status
+    2. Enforces cooling period (MIN_HANDOVER_WAIT_MINUTES)
+    3. Blocks confirmation if discrepancy > CRITICAL_DISCREPANCY_PERCENT
+    4. Enforces daily dealer-recycler pair transaction cap (anti-collusion)
+    5. Calculates payout and atomically commits transaction
+    6. Logs to tamper-evident audit trail
+    7. Recomputes dealer trust score
     """
     lot = db.query(Lot).filter(Lot.lot_id == lot_id).first()
     if not lot:
@@ -105,9 +121,72 @@ def confirm_handover(
             detail=f"Transaction already exists for lot '{lot_id}'. Duplicate confirmation rejected."
         )
 
+    # ── FRAUD PREVENTION: Cooling Period ──
+    # Lot must have been in PENDING_HANDOVER for at least MIN_HANDOVER_WAIT_MINUTES
+    if lot.updated_at:
+        lot_updated = lot.updated_at
+        if lot_updated.tzinfo is None:
+            lot_updated = lot_updated.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        elapsed_minutes = (now - lot_updated).total_seconds() / 60.0
+        if elapsed_minutes < settings.MIN_HANDOVER_WAIT_MINUTES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cooling period not met: Lot was assigned {elapsed_minutes:.0f} minutes ago. "
+                       f"A minimum of {settings.MIN_HANDOVER_WAIT_MINUTES} minutes must pass "
+                       f"before confirmation to prevent instant fabrication loops."
+            )
+
     declared = lot.declared_weight
     verified = data.verified_weight
     disc_pct = round(abs(declared - verified) / declared * 100.0, 2)
+
+    # ── FRAUD PREVENTION: Critical Discrepancy Hard-Block ──
+    if disc_pct > settings.CRITICAL_DISCREPANCY_PERCENT:
+        create_fraud_alert(
+            db, lot.dealer_id, "HIGH_DISCREPANCY", "CRITICAL",
+            {
+                "lot_id": lot_id,
+                "declared_weight": declared,
+                "verified_weight": verified,
+                "discrepancy_percent": disc_pct,
+                "recycler_id": current_recycler.id,
+            }
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"BLOCKED: Weight discrepancy of {disc_pct:.1f}% exceeds the critical threshold "
+                   f"of {settings.CRITICAL_DISCREPANCY_PERCENT:.0f}%. "
+                   f"Declared: {declared:.2f} kg, Verified: {verified:.2f} kg. "
+                   f"This transaction requires admin investigation. A fraud alert has been filed."
+        )
+
+    # ── FRAUD PREVENTION: Anti-Collusion Daily Pair Cap ──
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    pair_count = db.query(Transaction).filter(
+        Transaction.dealer_id == lot.dealer_id,
+        Transaction.recycler_id == current_recycler.id,
+        Transaction.timestamp >= day_start,
+    ).count()
+
+    if pair_count >= settings.MAX_DEALER_RECYCLER_TXN_PER_DAY:
+        create_fraud_alert(
+            db, lot.dealer_id, "COLLUSION_PATTERN", "HIGH",
+            {
+                "dealer_id": lot.dealer_id,
+                "recycler_id": current_recycler.id,
+                "daily_pair_count": pair_count,
+                "limit": settings.MAX_DEALER_RECYCLER_TXN_PER_DAY,
+            }
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Daily transaction limit reached: {pair_count} transactions today between "
+                   f"this dealer and recycler (max {settings.MAX_DEALER_RECYCLER_TXN_PER_DAY}/day). "
+                   f"This limit prevents potential collusion patterns."
+        )
 
     # Determine recycler rate for this category
     profile = db.query(RecyclerProfile).filter(RecyclerProfile.user_id == current_recycler.id).first()
@@ -140,8 +219,36 @@ def confirm_handover(
             notes=data.notes
         )
         db.add(tx)
+
+        # ── Audit Trail ──
+        log_action(
+            db=db,
+            actor_id=current_recycler.id,
+            actor_role=current_recycler.role,
+            action="HANDOVER_CONFIRMED",
+            entity_type="Transaction",
+            entity_id=tx.transaction_id,
+            details={
+                "lot_id": lot_id,
+                "dealer_id": lot.dealer_id,
+                "declared_weight": declared,
+                "verified_weight": verified,
+                "discrepancy_percent": disc_pct,
+                "rate_per_kg": rate,
+                "total_payout": total_payout,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         db.commit()
         db.refresh(tx)
+
+        # Recompute dealer trust score after handover
+        try:
+            update_dealer_trust(db, lot.dealer_id)
+            db.commit()
+        except Exception:
+            pass  # Don't fail the handover if trust update fails
 
         # Auto-complete batch if all sibling lots in the same batch are COMPLETED
         sibling_bl = db.query(BatchLot).filter(BatchLot.lot_id == lot_id).first()
@@ -161,6 +268,8 @@ def confirm_handover(
                 except Exception:
                     pass  # Don't fail the handover if batch completion fails
 
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -187,3 +296,4 @@ def confirm_handover(
         timestamp=tx.timestamp,
         notes=tx.notes
     )
+

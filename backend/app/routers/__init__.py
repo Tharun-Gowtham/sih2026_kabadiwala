@@ -8,6 +8,7 @@ from app.routers.handover import router as handover_router
 from app.routers.ledger import router as ledger_router
 from app.routers.records import router as records_router
 from app.routers.batches import router as batches_router
+from app.routers.admin import router as admin_router
 
 __all__ = [
     "auth_router",
@@ -20,4 +21,5 @@ __all__ = [
     "ledger_router",
     "records_router",
     "batches_router",
+    "admin_router",
 ]

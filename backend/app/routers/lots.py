@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_dealer, get_current_user
-from app.core.config import LotStatus, UserRole, settings
+from app.core.config import LotStatus, UserRole, TrustTier, settings
 from app.models.user import User
 from app.models.purchase import Purchase
 from app.models.lot import Lot
@@ -13,15 +13,27 @@ from app.models.recycler import RecyclerProfile
 from app.schemas.lot import LotCreate, LotResponse, LotAssignRecycler
 from app.services.geohash_service import encode_geohash
 from app.services.batch_service import form_batches
+from app.services.audit_service import log_action
+from app.services.fraud_detection import update_dealer_trust
 
 router = APIRouter(prefix="/lots", tags=["Lots"])
 
 @router.post("", response_model=LotResponse, status_code=status.HTTP_201_CREATED)
 def create_lot(
     data: LotCreate,
+    request: Request,
     current_dealer: User = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
+    # ── Fraud Prevention: Trust Tier Gate ──
+    if current_dealer.trust_tier == TrustTier.SUSPENDED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Your account is suspended due to fraud detection. "
+                   f"Reason: {current_dealer.suspended_reason or 'Under investigation'}. "
+                   f"Contact admin to resolve."
+        )
+
     category_val = data.category.value
     lot_uuid = data.lot_id if data.lot_id else str(uuid.uuid4())
 
@@ -73,6 +85,10 @@ def create_lot(
     initial_batch_status = "unbatched"
     if lot_lat is not None and lot_lng is not None:
         geohash_cell = encode_geohash(lot_lat, lot_lng, precision=settings.GEOHASH_PRECISION)
+
+    # ── Fraud Prevention: Probation dealers get PENDING_REVIEW status ──
+    if current_dealer.trust_tier == TrustTier.PROBATION.value:
+        initial_status = LotStatus.PENDING_REVIEW.value
 
     # 3. Create Lot
     lot = Lot(
@@ -134,8 +150,33 @@ def create_lot(
             remaining_needed = 0.0
             break
 
+    # ── Audit Trail ──
+    log_action(
+        db=db,
+        actor_id=current_dealer.id,
+        actor_role=current_dealer.role,
+        action="LOT_CREATED",
+        entity_type="Lot",
+        entity_id=lot_uuid,
+        details={
+            "category": category_val,
+            "declared_weight": data.declared_weight,
+            "status": initial_status,
+            "recycler_id": recycler_id,
+            "trust_tier": current_dealer.trust_tier,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+
     db.commit()
     db.refresh(lot)
+
+    # Recompute dealer trust score after lot creation
+    try:
+        update_dealer_trust(db, current_dealer.id)
+        db.commit()
+    except Exception:
+        pass  # Don't fail lot creation if trust update fails
 
     # Auto-trigger batch formation if enabled and lot has coordinates
     if settings.AUTO_BATCH_ON_LOT_CREATE and lot.geohash_cell:
@@ -304,11 +345,12 @@ def assign_recycler(
 @router.post("/{lot_id}/cancel", response_model=LotResponse)
 def cancel_lot(
     lot_id: str,
+    request: Request,
     current_dealer: User = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
     """
-    Cancel an existing lot in POOLED or PENDING_HANDOVER status.
+    Cancel an existing lot in POOLED, PENDING_HANDOVER, or PENDING_REVIEW status.
     Unlinks all allocated purchases (resetting p.lot_id = None), restoring stock to dealer inventory.
     """
     lot = db.query(Lot).filter(Lot.lot_id == lot_id, Lot.dealer_id == current_dealer.id).first()
@@ -335,8 +377,32 @@ def cancel_lot(
 
     lot.status = LotStatus.CANCELLED.value
     lot.updated_at = datetime.now(timezone.utc)
+
+    # ── Audit Trail ──
+    log_action(
+        db=db,
+        actor_id=current_dealer.id,
+        actor_role=current_dealer.role,
+        action="LOT_CANCELLED",
+        entity_type="Lot",
+        entity_id=lot_id,
+        details={
+            "category": lot.category,
+            "declared_weight": lot.declared_weight,
+            "previous_status": lot.status,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+
     db.commit()
     db.refresh(lot)
+
+    # Recompute trust score (cancellation rate affects trust)
+    try:
+        update_dealer_trust(db, current_dealer.id)
+        db.commit()
+    except Exception:
+        pass
 
     return LotResponse(
         lot_id=lot.lot_id,
