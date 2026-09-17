@@ -153,8 +153,8 @@ export const TRANSLATIONS = {
       'Mixed Plastic': 'मिश्रित ई-कचरा प्लास्टिक'
     },
     speech: {
-      valuation: '{weight} किलो {category} का अनुमानित भाव {value} रुपये बनता है। बाजार में इसका रेट {min} से {max} रुपये के बीच है।',
-      priceSummary: 'आज के ई-कचरा कबाड़ के थोक भाव प्रति किलो: पीसीबी चार सौ पचास रुपये, तार तीन सौ बीस रुपये, एलसीडी एक सौ अस्सी रुपये, बैटरी पचानवे रुपये, मोटर व चुंबक नब्बे रुपये, सीआरटी पैंतालीस रुपये, और मिश्रित प्लास्टिक पैंतीस रुपये है।'
+      valuation: 'आपके {weight} किलो {category} का भाव, लगभग {value} रुपये। बाजार में इसकी कीमत {min} से {max} रुपये तक जाती हैं।',
+      priceSummary: 'आज के ई-कचरा थोक भाव प्रति किलो इस प्रकार हैं: पीसीबी चार सौ पचास रुपये, तार तीन सौ बीस रुपये, एलसीडी एक सौ अस्सी रुपये, बैटरी पचानवे रुपये, मोटर व चुंबक नब्बे रुपये, सीआरटी पैंतालीस रुपये, और मिश्रित प्लास्टिक पैंतीस रुपये।'
     }
   },
   mr: {
@@ -610,7 +610,15 @@ class I18nEngine {
     try {
       window.speechSynthesis.cancel(); // Stop any active speech
 
-      const utterance = new SpeechSynthesisUtterance(text);
+      // Hindi TTS preprocessor: the Windows Hindi voice mispronounces 'है' as 'ho'.
+      // We globally replace 'है' → 'हैं' when followed by punctuation/space/end-of-string.
+      // This fixes the bug for ALL Hindi text in one place without touching individual strings.
+      let processedText = text;
+      if (this.currentLang === 'hi') {
+        processedText = text.replace(/है(?=[\s।?,.!]|$)/g, 'हैं');
+      }
+
+      const utterance = new SpeechSynthesisUtterance(processedText);
       const langConfig = SUPPORTED_LANGUAGES.find(l => l.code === this.currentLang) || SUPPORTED_LANGUAGES[0];
 
       utterance.lang = langConfig.voiceLang || 'en-IN';
@@ -620,11 +628,22 @@ class I18nEngine {
       const voices = window.speechSynthesis.getVoices();
       if (voices && voices.length > 0) {
         const langPrefix = utterance.lang.split('-')[0].toLowerCase();
+        
+        // Priority 1: Google cloud voices (highest quality, bug-free for Indian languages)
+        const googleVoice = voices.find(v => 
+          (v.lang.toLowerCase().startsWith(langPrefix) || v.lang.toLowerCase().includes(langPrefix)) && 
+          v.name.toLowerCase().includes('google')
+        );
+        
+        // Priority 2: Any native fallback
         const matchedVoice = voices.find(v => 
           v.lang.toLowerCase().startsWith(langPrefix) || 
           v.lang.toLowerCase().includes(langPrefix)
         );
-        if (matchedVoice) {
+        
+        if (googleVoice) {
+          utterance.voice = googleVoice;
+        } else if (matchedVoice) {
           utterance.voice = matchedVoice;
         }
       }
