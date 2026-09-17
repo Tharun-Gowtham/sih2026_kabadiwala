@@ -2,12 +2,13 @@
  * Kabadiwala Lite — Collector Guided Workflow View
  * Intuitive 4-Step Guided Flow:
  *   Step 1: Identify Material (Camera Photo & On-Device ML or 1-Tap Category Grid)
+ *           Now with TFLite 50-class model support + heuristic fallback.
  *   Step 2: Approximate Weight (Tactile Stepper + Quick Chips)
  *   Step 3: Instant Fair Value & Spoken Voice Output in 8 Indian Languages
  *   Step 4: Save Digital Scrap Slip with Scannable QR & GPS OR Find Nearby Authorized Recyclers
  */
 
-import { classifyScrapImage, ML_CONFIG } from '../ml-classifier.js';
+import { classifyScrapImage, ML_CONFIG, getModelStatus, initializeModel } from '../ml-classifier.js';
 import { CANONICAL_CATEGORIES, getCategoryMeta, formatCurrency, generateUUID, showToast } from '../utils.js';
 import { i18n } from '../i18n.js';
 import { geoEngine } from '../geo.js';
@@ -72,6 +73,14 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
           <p class="step-subtitle">Snap a photo with camera for AI suggestion or select from the 7 categories</p>
         </div>
 
+        <!-- Model Status Pill -->
+        <div class="card" id="modelStatusCard" style="background: rgba(52, 211, 153, 0.08); border-color: rgba(52, 211, 153, 0.3); padding: 8px 12px; margin-bottom: 12px;">
+          <div style="font-size: 0.76rem; color: #86efac; line-height: 1.4; display: flex; align-items: center; gap: 8px;">
+            <span id="modelStatusIndicator" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span>
+            <span id="modelStatusText">Loading TFLite model...</span>
+          </div>
+        </div>
+
         <!-- Camera Viewfinder -->
         <div class="collector-viewfinder-card" id="viewfinderCard" style="margin-bottom: 12px;">
           <div class="viewfinder-overlay" id="viewfinderOverlay">
@@ -98,7 +107,7 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
           </button>
         </div>
 
-        <!-- Quick Test Samples -->
+        <!-- Sample Scrap Quick Buttons -->
         <div style="margin-bottom: 14px;">
           <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">
             ⚡ Quick Test Samples
@@ -251,11 +260,27 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
   const saveSlipBtn = container.querySelector('#saveDigitalSlipBtn');
   const viewBuyersBtn = container.querySelector('#viewNearbyBuyersBtn');
 
-  // Acquire GPS
-  geoEngine.acquireLocation().then(pos => {
-    if (gpsText) {
-      gpsText.innerHTML = `📍 GPS: ${geoEngine.formatCoords(pos)}`;
+  const statusIndicator = container.querySelector('#modelStatusIndicator');
+  const statusText = container.querySelector('#modelStatusText');
+
+  // Initialize model on view load
+  function updateModelStatusUI() {
+    if (!statusIndicator || !statusText) return;
+    const status = getModelStatus();
+    if (status.loaded) {
+      statusIndicator.style.background = '#34d399';
+      statusText.textContent = `✅ TFLite 50-class model ready (${status.usingFallback ? 'heuristic fallback' : 'active'})`;
+    } else if (status.isLoading) {
+      statusIndicator.style.background = '#fbbf24';
+      statusText.textContent = '⏳ Loading TFLite model...';
+    } else {
+      statusIndicator.style.background = '#ef4444';
+      statusText.textContent = '⚠️ Heuristic classifier (model offline)';
     }
+  }
+
+  initializeModel().then(() => {
+    updateModelStatusUI();
   });
 
   // Voice: speak Namaste only when first entering the app
@@ -300,22 +325,22 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
     return { estTotal, minTotal, maxTotal, w, priceInfo };
   }
 
-  // Bind Steppers
+  // Step 2 Stepper Listeners
   weightMinusBtn?.addEventListener('click', () => {
-    if ('vibrate' in navigator) navigator.vibrate(20);
-    const val = Math.max(0.5, (parseFloat(weightInput.value) || 1.0) - 1.0);
+    let val = Math.max(0.5, (parseFloat(weightInput.value) || 1.0) - 0.5);
     weightInput.value = val;
     recalculateValuation();
   });
 
   weightPlusBtn?.addEventListener('click', () => {
-    if ('vibrate' in navigator) navigator.vibrate(20);
-    const val = (parseFloat(weightInput.value) || 1.0) + 1.0;
+    let val = (parseFloat(weightInput.value) || 1.0) + 0.5;
     weightInput.value = val;
     recalculateValuation();
   });
 
-  weightInput?.addEventListener('input', recalculateValuation);
+  weightInput?.addEventListener('input', () => {
+    recalculateValuation();
+  });
 
   // Bind Chips
   container.querySelectorAll('.weight-chip').forEach(chip => {
@@ -476,6 +501,7 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
       renderMlResult(pred);
       highlightSelectedCategory(pred.category);
       recalculateValuation();
+      updateModelStatusUI();
     } catch (err) {
       console.error('Inference error:', err);
       mlContainer.innerHTML = `
@@ -484,12 +510,65 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
           <p style="font-size: 0.82rem; color: var(--text-muted);">Please select the category manually using the grid below.</p>
         </div>
       `;
+      updateModelStatusUI();
     }
   }
 
   function renderMlResult(pred) {
     const meta = getCategoryMeta(pred.category);
     const catName = i18n.getCategoryName(pred.category);
+    const info = pred.materialInfo || ML_CONFIG.MATERIAL_INFO?.[pred.category];
+    const source = pred.source || 'unknown';
+    const isTFLite = source === 'tflite';
+
+    // Build category breakdown display for TFLite results
+    let breakdownHtml = '';
+    if (isTFLite && pred.categoryBreakdown) {
+      const sortedCats = Object.entries(pred.categoryBreakdown)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 7);
+      
+      breakdownHtml = `
+        <div class="category-breakdown" style="margin-top: 10px;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Category Scores</div>
+          <div style="display: grid; gap: 4px;">
+            ${sortedCats.map(([cat, score]) => `
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem;">
+                <span style="width: 100px; color: ${cat === pred.category ? '#34d399' : 'var(--text-secondary)'}; font-weight: ${cat === pred.category ? '700' : '500'};">
+                  ${getCategoryMeta(cat)?.icon || ''} ${cat}
+                </span>
+                <div style="flex: 1; height: 6px; background: rgba(148, 163, 184, 0.2); border-radius: 3px; overflow: hidden;">
+                  <div style="width: ${Math.round(score * 100)}%; height: 100%; background: ${cat === pred.category ? 'linear-gradient(90deg, #34d399, #22c55e)' : 'linear-gradient(90deg, #64748b, #94a3b8)'}; border-radius: 3px; transition: width 0.3s;"></div>
+                </div>
+                <span style="width: 40px; text-align: right; color: var(--text-muted);">${Math.round(score * 100)}%</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Top 50 predictions (collapsible)
+    let top50Html = '';
+    if (isTFLite && pred.top50Predictions && pred.top50Predictions.length > 0) {
+      top50Html = `
+        <details class="top50-details" style="margin-top: 10px;">
+          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Top 10 of 50 Raw Predictions</summary>
+          <div style="margin-top: 8px; display: grid; gap: 3px;">
+            ${pred.top50Predictions.map(p => `
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7rem; padding: 4px 8px; background: rgba(148, 163, 184, 0.1); border-radius: 4px;">
+                <span style="width: 140px; color: var(--text-main);">${p.label}</span>
+                <span style="width: 80px; color: var(--text-secondary);">→ ${p.canonical}</span>
+                <div style="flex: 1; height: 4px; background: rgba(148, 163, 184, 0.2); border-radius: 2px; overflow: hidden;">
+                  <div style="width: ${p.percentage}%; height: 100%; background: linear-gradient(90deg, #38bdf8, #0ea5e9); border-radius: 2px;"></div>
+                </div>
+                <span style="width: 35px; text-align: right; color: var(--text-muted);">${p.percentage}%</span>
+              </div>
+            `).join('')}
+          </div>
+        </details>
+      `;
+    }
 
     mlContainer.innerHTML = `
       <div class="ml-result-card ${pred.isConfident ? 'confident' : 'low-confidence'}">
@@ -498,9 +577,14 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
             <span>${meta.icon}</span>
             <span>${pred.isConfident ? `${t('detectedCategory')}: ${catName}` : 'Uncertain Classification'}</span>
           </div>
-          <span class="badge ${pred.isConfident ? 'badge-success' : 'badge-warning'}">
-            ${pred.confidencePercentage}% ${t('confidence')}
-          </span>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <span class="badge ${pred.isConfident ? 'badge-success' : 'badge-warning'}">
+              ${pred.confidencePercentage}% ${t('confidence')}
+            </span>
+            <span style="font-size: 0.65rem; color: ${isTFLite ? '#38bdf8' : '#fbbf24'}; font-weight: 600;">
+              ${isTFLite ? '🤖 TFLite Model' : '🧮 Heuristic Fallback'}
+            </span>
+          </div>
         </div>
 
         <div class="confidence-bar-wrapper">
@@ -515,6 +599,9 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
             ></div>
           </div>
         </div>
+
+        ${breakdownHtml}
+        ${top50Html}
 
         ${pred.isConfident ? `
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
@@ -531,6 +618,30 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
           </div>
         `}
       </div>
+
+      <!-- Material Fact & Safety Guide Card -->
+      ${info ? `
+        <div class="material-info-card" id="materialGuideCard" style="margin-top: 10px;">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span class="card-title" style="font-size: 0.92rem; font-weight: 700;">${info.title} Guide</span>
+            <span class="badge badge-info" style="font-size: 0.72rem;">${info.indicativeRate}</span>
+          </div>
+
+          <div class="material-fact-row" style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.78rem;">
+            <span class="material-fact-label" style="color: var(--text-muted);">Recyclability</span>
+            <span class="material-fact-value" style="font-weight: 600; color: #34d399;">${info.recyclability}</span>
+          </div>
+
+          <div class="material-fact-row" style="margin-bottom: 6px; font-size: 0.78rem;">
+            <span class="material-fact-label" style="color: var(--text-muted); display: block; margin-bottom: 2px;">Field Sorting Tip:</span>
+            <span class="material-fact-value" style="color: var(--text-secondary);">${info.sortingTips}</span>
+          </div>
+
+          <div class="material-safety-note" style="font-size: 0.74rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 6px 10px; color: #fbbf24; margin-top: 6px;">
+            ${info.safetyNote}
+          </div>
+        </div>
+      ` : ''}
     `;
 
     // Voice: ask user to confirm the detected category
