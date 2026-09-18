@@ -183,13 +183,13 @@ export function renderCollectorLiteView(container, navigateTo) {
     const status = getModelStatus();
     if (status.loaded) {
       statusIndicator.style.background = '#34d399';
-      statusText.textContent = `✅ TFLite 50-class model ready (${status.usingFallback ? 'using heuristic fallback' : 'active'})`;
+      statusText.textContent = `✅ TFLite 50-class model ready (${status.usingFallback ? 'float16 fallback active' : 'primary model active'})`;
     } else if (status.isLoading) {
       statusIndicator.style.background = '#fbbf24';
       statusText.textContent = '⏳ Loading TFLite model...';
     } else {
       statusIndicator.style.background = '#ef4444';
-      statusText.textContent = '⚠️ Using heuristic classifier (model failed to load)';
+      statusText.textContent = '⚠️ TFLite models unavailable; classification deferred';
     }
   }
 
@@ -351,12 +351,12 @@ export function renderCollectorLiteView(container, navigateTo) {
 
     // Top 50 predictions (collapsible)
     let top50Html = '';
-    if (isTFLite && pred.top50Predictions && pred.top50Predictions.length > 0) {
+    if (isTFLite && pred.topPredictions && pred.topPredictions.length > 0) {
       top50Html = `
         <details class="top50-details" style="margin-top: 10px;">
-          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Top 10 of 50 Raw Predictions</summary>
+          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Top 10 of 20 Raw Predictions</summary>
           <div style="margin-top: 8px; display: grid; gap: 3px;">
-            ${pred.top50Predictions.map(p => `
+            ${pred.topPredictions.map(p => `
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7rem; padding: 4px 8px; background: rgba(148, 163, 184, 0.1); border-radius: 4px;">
                 <span style="width: 140px; color: var(--text-main);">${p.label}</span>
                 <span style="width: 80px; color: var(--text-secondary);">→ ${p.canonical}</span>
@@ -492,7 +492,7 @@ export function renderCollectorLiteView(container, navigateTo) {
           materialInfo: info,
           source: 'manual',
           categoryBreakdown: {},
-          top50Predictions: []
+          topPredictions: []
         });
       }
     });

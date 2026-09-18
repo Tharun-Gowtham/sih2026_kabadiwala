@@ -41,8 +41,8 @@ function cropWithPadding(imageElement, bbox, padFraction = PAD_FRACTION) {
   return canvas;
 }
 
-function letterboxResizeTo224(canvas) {
-  const target = 224;
+function letterboxResizeTo240(canvas) {
+  const target = 240;
   const scale = Math.min(target / canvas.width, target / canvas.height);
   const newW = Math.max(1, Math.round(canvas.width * scale));
   const newH = Math.max(1, Math.round(canvas.height * scale));
@@ -125,7 +125,7 @@ export async function detectAndClassify(imageElementOrFile) {
 
   for (const box of boxes) {
     const cropped = cropWithPadding(canvas, box, PAD_FRACTION);
-    const resized = letterboxResizeTo224(cropped);
+    const resized = letterboxResizeTo240(cropped);
     const result = await classifyWithTFLite(resized);
     classified.push({ ...result, box });
   }

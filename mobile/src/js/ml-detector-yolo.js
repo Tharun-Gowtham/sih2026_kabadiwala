@@ -2,7 +2,7 @@ import * as ort from 'onnxruntime-web';
 
 const MODEL_URL = '/models/yolo/yolov8m.onnx';
 const DETECTION_THRESHOLD = 0.25;
-const RELEVANT_CLASS_IDS = new Set([62, 63, 64, 66, 67, 68, 69, 70, 72, 73, 74]);
+const RELEVANT_CLASS_IDS = new Set([62, 63, 64, 65, 66, 67, 68, 69, 70, 72, 73, 74]);
 
 const COCO_CLASS_NAMES = {
   0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'airplane', 5: 'bus', 6: 'train', 7: 'truck', 8: 'boat',

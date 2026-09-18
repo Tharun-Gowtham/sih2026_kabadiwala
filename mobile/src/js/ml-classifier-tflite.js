@@ -2,7 +2,8 @@ import * as tf from '@tensorflow/tfjs-core';
 import '@tensorflow/tfjs-backend-webgl';
 import '@tensorflow/tfjs-backend-wasm';
 
-const MODEL_URL = '/models/ewaste_model/ewaste_model_int8.tflite';
+const MODEL_URL = '/models/ewaste_model/ewaste_model_dynamic.tflite';
+const FALLBACK_MODEL_URL = '/models/ewaste_model/ewaste_model_float16.tflite';
 const LABELS_URL = '/models/ewaste_model/labels.json';
 const CATEGORY_MAP_URL = '/models/ewaste_model/category_map.json';
 
@@ -10,14 +11,16 @@ const CANONICAL_CATEGORIES = [
   'PCB', 'CRT', 'LCD', 'Cable', 'Battery', 'Motor/Magnet', 'Mixed Plastic'
 ];
 
-const INPUT_SIZE = 224;
+const INPUT_SIZE = 240;
 const CONFIDENCE_THRESHOLD = 0.70;
 
 let model = null;
+let fallbackModel = null;
 let labels = null;
 let categoryMap = null;
 let isLoading = false;
 let loadPromise = null;
+let fallbackLoadPromise = null;
 let tfliteReady = false;
 
 async function loadJSON(url) {
@@ -65,9 +68,9 @@ async function loadModelAndMetadata() {
       ]);
 
       model = await window.tflite.TFLiteModel.create(MODEL_URL);
-      console.log('[TFLite] Model loaded successfully');
+      console.log('[TFLite] Primary model loaded successfully');
     } catch (err) {
-      console.error('[TFLite] Failed to load model:', err);
+      console.error('[TFLite] Failed to load primary model:', err);
       model = null;
       labels = null;
       categoryMap = null;
@@ -80,23 +83,50 @@ async function loadModelAndMetadata() {
   return loadPromise;
 }
 
-function preprocessImage(imageElement) {
-  const tensor = tf.browser.fromPixels(imageElement)
-    .resizeBilinear([INPUT_SIZE, INPUT_SIZE])
-    .toFloat()
-    .div(255.0)
-    .expandDims(0);
-  return tensor;
+async function loadFallbackModel() {
+  if (fallbackModel) return fallbackModel;
+  if (fallbackLoadPromise) return fallbackLoadPromise;
+
+  fallbackLoadPromise = (async () => {
+    try {
+      await waitForTFLite();
+      const loaded = await window.tflite.TFLiteModel.create(FALLBACK_MODEL_URL);
+      fallbackModel = loaded;
+      console.log('[TFLite] Float16 fallback model loaded successfully');
+      return loaded;
+    } catch (err) {
+      console.warn('[TFLite] Float16 fallback model unavailable:', err);
+      fallbackModel = null;
+      return null;
+    }
+  })();
+
+  return fallbackLoadPromise;
 }
 
-function aggregateToCanonical(probs50) {
+function preprocessImage(imageElement) {
+  return tf.tidy(() => {
+    const mean = tf.tensor1d([0.485, 0.456, 0.406]);
+    const std = tf.tensor1d([0.229, 0.224, 0.225]);
+
+    return tf.browser.fromPixels(imageElement)
+      .resizeBilinear([INPUT_SIZE, INPUT_SIZE])
+      .toFloat()
+      .div(255.0)
+      .sub(mean)
+      .div(std)
+      .expandDims(0);
+  });
+}
+
+function aggregateToCanonical(probs) {
   const scores = {};
   CANONICAL_CATEGORIES.forEach(c => scores[c] = 0);
 
-  for (let i = 0; i < probs50.length; i++) {
+  for (let i = 0; i < probs.length; i++) {
     const canonical = categoryMap[labels[i]];
     if (canonical && scores[canonical] !== undefined) {
-      scores[canonical] += probs50[i];
+      scores[canonical] += probs[i];
     }
   }
 
@@ -110,7 +140,7 @@ function aggregateToCanonical(probs50) {
     isConfident: topScore >= CONFIDENCE_THRESHOLD,
     threshold: CONFIDENCE_THRESHOLD,
     categoryBreakdown: scores,
-    top50Predictions: probs50.map((p, i) => ({
+    topPredictions: probs.map((p, i) => ({
       label: labels[i],
       canonical: categoryMap[labels[i]],
       probability: p,
@@ -119,10 +149,15 @@ function aggregateToCanonical(probs50) {
   };
 }
 
-export async function classifyWithTFLite(imageElementOrFile) {
+export async function classifyWithTFLite(imageElementOrFile, strategy = 'primary') {
   await loadModelAndMetadata();
 
-  if (!model) {
+  let activeModel = model;
+  if (strategy === 'fallback') {
+    activeModel = await loadFallbackModel();
+  }
+
+  if (!activeModel) {
     throw new Error('TFLite model not loaded');
   }
 
@@ -137,16 +172,20 @@ export async function classifyWithTFLite(imageElementOrFile) {
   }
 
   const tensor = preprocessImage(img);
-  const output = await model.predict(tensor);
-  const probs50 = Array.from(output.dataSync());
+  const output = await activeModel.predict(tensor);
+  const probs = Array.from(output.dataSync());
   tensor.dispose();
   output.dispose();
 
-  return aggregateToCanonical(probs50);
+  return aggregateToCanonical(probs);
 }
 
 export function isModelLoaded() {
   return model !== null && labels !== null && categoryMap !== null;
+}
+
+export function isFallbackModelLoaded() {
+  return fallbackModel !== null;
 }
 
 export function getLoadStatus() {
@@ -154,11 +193,29 @@ export function getLoadStatus() {
 }
 
 export async function warmup() {
-  await loadModelAndMetadata();
-  if (!model) return false;
-  const dummy = tf.zeros([1, INPUT_SIZE, INPUT_SIZE, 3]);
-  const out = model.predict(dummy);
-  out.dispose();
-  dummy.dispose();
-  return true;
+  try {
+    await loadModelAndMetadata();
+    if (model) {
+      const dummy = tf.zeros([1, INPUT_SIZE, INPUT_SIZE, 3]);
+      const out = model.predict(dummy);
+      out.dispose();
+      dummy.dispose();
+      return true;
+    }
+  } catch (err) {
+    console.warn('[TFLite] Primary warmup failed:', err);
+  }
+
+  try {
+    const fallback = await loadFallbackModel();
+    if (!fallback) return false;
+    const dummy = tf.zeros([1, INPUT_SIZE, INPUT_SIZE, 3]);
+    const out = fallback.predict(dummy);
+    out.dispose();
+    dummy.dispose();
+    return true;
+  } catch (fallbackErr) {
+    console.warn('[TFLite] Fallback warmup failed:', fallbackErr);
+    return false;
+  }
 }
