@@ -76,39 +76,36 @@ let useHeuristicFallback = false;
 
 export async function classifyScrapImage(imageElementOrFile) {
   try {
-    if (isModelLoaded()) {
-      const result = await classifyWithTFLite(imageElementOrFile);
-      return {
-        ...result,
-        source: 'tflite',
-        materialInfo: ML_CONFIG.MATERIAL_INFO[result.category] || null
-      };
-    }
-
-    if (isFallbackModelLoaded()) {
+    const result = await classifyWithTFLite(imageElementOrFile);
+    return {
+      ...result,
+      source: 'tflite',
+      materialInfo: ML_CONFIG.MATERIAL_INFO[result.category] || null
+    };
+  } catch (err) {
+    console.warn('[ML] Primary TFLite classification failed, trying float16 fallback:', err);
+    try {
       const result = await classifyWithTFLite(imageElementOrFile, 'fallback');
       return {
         ...result,
         source: 'tflite-float16',
         materialInfo: ML_CONFIG.MATERIAL_INFO[result.category] || null
       };
+    } catch (fallbackErr) {
+      console.warn('[ML] TFLite classification failed, returning deterministic unavailable state:', fallbackErr);
+      useHeuristicFallback = false;
+      return {
+        category: 'Mixed Plastic',
+        confidence: 0.0,
+        confidencePercentage: 0,
+        isConfident: false,
+        threshold: ML_CONFIG.CONFIDENCE_THRESHOLD,
+        materialInfo: ML_CONFIG.MATERIAL_INFO['Mixed Plastic'],
+        source: 'unavailable',
+        categoryBreakdown: {},
+        topPredictions: []
+      };
     }
-
-    throw new Error('No TFLite model available');
-  } catch (err) {
-    console.warn('[ML] TFLite classification failed, returning deterministic unavailable state:', err);
-    useHeuristicFallback = false;
-    return {
-      category: 'Mixed Plastic',
-      confidence: 0.0,
-      confidencePercentage: 0,
-      isConfident: false,
-      threshold: ML_CONFIG.CONFIDENCE_THRESHOLD,
-      materialInfo: ML_CONFIG.MATERIAL_INFO['Mixed Plastic'],
-      source: 'unavailable',
-      categoryBreakdown: {},
-      topPredictions: []
-    };
   }
 }
 

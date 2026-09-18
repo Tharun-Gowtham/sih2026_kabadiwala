@@ -183,7 +183,7 @@ export function renderCollectorLiteView(container, navigateTo) {
     const status = getModelStatus();
     if (status.loaded) {
       statusIndicator.style.background = '#34d399';
-      statusText.textContent = `✅ TFLite 50-class model ready (${status.usingFallback ? 'float16 fallback active' : 'primary model active'})`;
+      statusText.textContent = `✅ TFLite 20-class model ready (${status.usingFallback ? 'float16 fallback active' : 'primary model active'})`;
     } else if (status.isLoading) {
       statusIndicator.style.background = '#fbbf24';
       statusText.textContent = '⏳ Loading TFLite model...';
