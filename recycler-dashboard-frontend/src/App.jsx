@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Package, CheckSquare, User, LayoutDashboard, Shield, FileText } from 'lucide-react';
+import { Package, CheckSquare, User, LayoutDashboard, Shield, FileText, Truck } from 'lucide-react';
 import { recyclerApi } from './api';
 
 import IncomingLots from './pages/IncomingLots';
 import ConfirmHandover from './pages/ConfirmHandover';
 import RecyclerProfile from './pages/RecyclerProfile';
 import AuditRecords from './pages/AuditRecords';
+import MilkRun from './pages/MilkRun';
 
 function Sidebar() {
   const location = useLocation();
@@ -22,6 +23,7 @@ function Sidebar() {
 
   const navItems = [
     { name: 'Incoming Lots', path: '/', icon: <Package className="w-5 h-5 mr-3" /> },
+    { name: 'Milk-Run Logistics', path: '/milkrun', icon: <Truck className="w-5 h-5 mr-3" /> },
     { name: 'Confirm Handover', path: '/confirm', icon: <CheckSquare className="w-5 h-5 mr-3" /> },
     { name: 'Audit & Certificates', path: '/audit', icon: <FileText className="w-5 h-5 mr-3" /> },
     { name: 'Recycler Profile', path: '/profile', icon: <User className="w-5 h-5 mr-3" /> },
@@ -79,6 +81,7 @@ function App() {
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-8">
           <Routes>
             <Route path="/" element={<IncomingLots />} />
+            <Route path="/milkrun" element={<MilkRun />} />
             <Route path="/confirm" element={<ConfirmHandover />} />
             <Route path="/audit" element={<AuditRecords />} />
             <Route path="/profile" element={<RecyclerProfile />} />

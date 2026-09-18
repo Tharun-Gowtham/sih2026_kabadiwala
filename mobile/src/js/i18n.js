@@ -56,9 +56,9 @@ export const TRANSLATIONS = {
     quickChips: 'Quick Weights',
     estimatedValue: 'Estimated Scrap Value',
     marketRange: 'Market Range',
-    listenEstimate: '🔊 Listen to Value',
-    listenAllRates: '🔊 Listen to All Rates',
-    listenSafety: '🔊 Listen to Safety Advice',
+    listenEstimate: 'Listen to Value',
+    listenAllRates: 'Listen to All Rates',
+    listenSafety: 'Listen to Safety Advice',
     speaking: 'Speaking...',
     priceBoardTitle: 'Live Scrap Market Rates & Trends',
     priceBoardSubtitle: 'Prevailing wholesale rates per kg with 30-day price trends',
@@ -122,9 +122,9 @@ export const TRANSLATIONS = {
     quickChips: 'त्वरित वजन',
     estimatedValue: 'अनुमानित कुल मूल्य',
     marketRange: 'बाज़ार दर सीमा',
-    listenEstimate: '🔊 बोल कर सुनें',
-    listenAllRates: '🔊 सभी रेट सुनें',
-    listenSafety: '🔊 सुरक्षा सलाह सुनें',
+    listenEstimate: 'बोल कर सुनें',
+    listenAllRates: 'सभी रेट सुनें',
+    listenSafety: 'सुरक्षा सलाह सुनें',
     speaking: 'सुनाया जा रहा है...',
     priceBoardTitle: 'कबाड़ बाजार भाव और रुझान',
     priceBoardSubtitle: 'प्रचलित थोक दरें (प्रति किलो) और पिछले 30 दिनों का रुझान',
@@ -188,9 +188,9 @@ export const TRANSLATIONS = {
     quickChips: 'जलद वजन',
     estimatedValue: 'अंदाजे एकूण किंमत',
     marketRange: 'बाजार भाव श्रेणी',
-    listenEstimate: '🔊 ऐका (किंमत)',
-    listenAllRates: '🔊 सर्व दर ऐका',
-    listenSafety: '🔊 सुरक्षा नियम ऐका',
+    listenEstimate: 'ऐका (किंमत)',
+    listenAllRates: 'सर्व दर ऐका',
+    listenSafety: 'सुरक्षा नियम ऐका',
     speaking: 'वाचत आहे...',
     priceBoardTitle: 'भंगार बाजार भाव व कल',
     priceBoardSubtitle: 'प्रति किलो चालू घाऊक दर आणि ३० दिवसांचा बाजाराचा कल',
@@ -254,9 +254,9 @@ export const TRANSLATIONS = {
     quickChips: 'விரைவு எடைகள்',
     estimatedValue: 'மதிப்பிடப்பட்ட தொகை',
     marketRange: 'சந்தை வரம்பு',
-    listenEstimate: '🔊 குரலில் கேட்க',
-    listenAllRates: '🔊 அனைத்து விலைகளையும் கேட்க',
-    listenSafety: '🔊 பாதுகாப்பு அறிவுரை கேட்க',
+    listenEstimate: 'குரலில் கேட்க',
+    listenAllRates: 'அனைத்து விலைகளையும் கேட்க',
+    listenSafety: 'பாதுகாப்பு அறிவுரை கேட்க',
     speaking: 'பேசுகிறது...',
     priceBoardTitle: 'மின்-கழிவு சந்தை நிலவரம்',
     priceBoardSubtitle: 'கிலோவுக்கு தற்போதைய சந்தை விலைகள்',
@@ -320,9 +320,9 @@ export const TRANSLATIONS = {
     quickChips: 'త్వరిత బరువులు',
     estimatedValue: 'అంచనా వేసిన మొత్తం విలువ',
     marketRange: 'మార్కెట్ ధరల పరిధి',
-    listenEstimate: '🔊 వాయిస్‌లో వినండి',
-    listenAllRates: '🔊 అన్ని ధరలను వినండి',
-    listenSafety: '🔊 భద్రతా సమాచారం వినండి',
+    listenEstimate: 'వాయిస్‌లో వినండి',
+    listenAllRates: 'అన్ని ధరలను వినండి',
+    listenSafety: 'భద్రతా సమాచారం వినండి',
     speaking: 'చెబుతోంది...',
     priceBoardTitle: 'ఈ-వేస్ట్ మార్కెట్ ధరలు',
     priceBoardSubtitle: 'ప్రస్తుత హోల్‌సేల్ కిలో ధరలు మరియు పోకడలు',
@@ -386,9 +386,9 @@ export const TRANSLATIONS = {
     quickChips: 'ತ್ವರಿತ ತೂಕಗಳು',
     estimatedValue: 'ಅಂದಾಜು ಒಟ್ಟು ಮೌಲ್ಯ',
     marketRange: 'ಮಾರುಕಟ್ಟೆ ಶ್ರೇಣಿ',
-    listenEstimate: '🔊 ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಿ',
-    listenAllRates: '🔊 ಎಲ್ಲಾ ಬೆಲೆಗಳನ್ನು ಕೇಳಿ',
-    listenSafety: '🔊 ಸುರಕ್ಷತಾ ಮಾಹಿತಿ ಕೇಳಿ',
+    listenEstimate: 'ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಿ',
+    listenAllRates: 'ಎಲ್ಲಾ ಬೆಲೆಗಳನ್ನು ಕೇಳಿ',
+    listenSafety: 'ಸುರಕ್ಷತಾ ಮಾಹಿತಿ ಕೇಳಿ',
     speaking: 'ಮಾತನಾಡುತ್ತಿದೆ...',
     priceBoardTitle: 'ಇ-ತ್ಯಾಜ್ಯ ಮಾರುಕಟ್ಟೆ ಬೆಲೆಗಳು',
     priceBoardSubtitle: 'ಪ್ರಸ್ತುತ ಸಗಟು ಕೆಜಿ ಬೆಲೆಗಳು ಮತ್ತು ಪ್ರವೃತ್ತಿಗಳು',
@@ -452,9 +452,9 @@ export const TRANSLATIONS = {
     quickChips: 'പെട്ടെന്നുള്ള ഭാരങ്ങൾ',
     estimatedValue: 'കണക്കാക്കിയ മൊത്തം വില',
     marketRange: 'വിപണി നിരക്ക് പരിധി',
-    listenEstimate: '🔊 ശബ്ദത്തിൽ കേൾക്കുക',
-    listenAllRates: '🔊 എല്ലാ നിരക്കുകളും കേൾക്കുക',
-    listenSafety: '🔊 സുരക്ഷാ നിർദ്ദേശം കേൾക്കുക',
+    listenEstimate: 'ശബ്ദത്തിൽ കേൾക്കുക',
+    listenAllRates: 'എല്ലാ നിരക്കുകളും കേൾക്കുക',
+    listenSafety: 'സുരക്ഷാ നിർദ്ദേശം കേൾക്കുക',
     speaking: 'സംസാരിക്കുന്നു...',
     priceBoardTitle: 'ഇ-മാലിന്യ വിപണി വിലനിലവാരം',
     priceBoardSubtitle: 'കിലോഗ്രാമിന് നിലവിലെ മൊത്തവിലയും ട്രെൻഡുകളും',
@@ -518,9 +518,9 @@ export const TRANSLATIONS = {
     quickChips: 'দ্রুত ওজন',
     estimatedValue: 'আনুমানিক মোট দাম',
     marketRange: 'বাজার দর পরিসীমা',
-    listenEstimate: '🔊 শুনে নিন (শব্দে)',
-    listenAllRates: '🔊 সব রেট শুনুন',
-    listenSafety: '🔊 নিরাপত্তা তথ্য শুনুন',
+    listenEstimate: 'শুনে নিন (শব্দে)',
+    listenAllRates: 'সব রেট শুনুন',
+    listenSafety: 'নিরাপত্তা তথ্য শুনুন',
     speaking: 'বলছি...',
     priceBoardTitle: 'ই-বর্জ্য বাজার দর এবং ট্রেন্ড',
     priceBoardSubtitle: 'প্রতি কেজিতে বর্তমান পাইকারি দর এবং ৩০ দিনের পরিবর্তন',
@@ -562,6 +562,7 @@ class I18nEngine {
       this.currentLang = 'en';
     }
     this.listeners = [];
+    this.activeSpeechText = null;
   }
 
   getLang() {
@@ -608,7 +609,18 @@ class I18nEngine {
     }
 
     try {
-      window.speechSynthesis.cancel(); // Stop any active speech
+      if (window.speechSynthesis.speaking) {
+        const wasSpeakingSameText = (this.activeSpeechText === text);
+        
+        window.speechSynthesis.cancel(); // Stop any active speech (this synchronously fires onend and clears activeSpeechText)
+        
+        // Toggle behavior: if they clicked the same button (same text), stop and return
+        if (wasSpeakingSameText) {
+          if (options.onEnd) options.onEnd();
+          return true;
+        }
+      }
+      this.activeSpeechText = text;
 
       const utterance = new SpeechSynthesisUtterance(text);
       const langConfig = SUPPORTED_LANGUAGES.find(l => l.code === this.currentLang) || SUPPORTED_LANGUAGES[0];
@@ -630,8 +642,14 @@ class I18nEngine {
       }
 
       if (options.onStart) utterance.onstart = options.onStart;
-      if (options.onEnd) utterance.onend = options.onEnd;
-      if (options.onError) utterance.onerror = options.onError;
+      utterance.onend = () => {
+        this.activeSpeechText = null;
+        if (options.onEnd) options.onEnd();
+      };
+      utterance.onerror = (e) => {
+        this.activeSpeechText = null;
+        if (options.onError) options.onError(e);
+      };
 
       window.speechSynthesis.speak(utterance);
       return true;

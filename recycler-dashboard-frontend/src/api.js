@@ -124,6 +124,35 @@ class RecyclerApiClient {
   async getTransactions() {
     return await this.request('/transactions');
   }
+
+  // Milk-Run Batch endpoints
+  async getAvailableBatches(category = null) {
+    let url = '/batches/available';
+    if (category) url += `?category=${encodeURIComponent(category)}`;
+    return await this.request(url);
+  }
+
+  async getMyBatches(statusFilter = null) {
+    let url = '/batches/my';
+    if (statusFilter) url += `?status=${encodeURIComponent(statusFilter)}`;
+    return await this.request(url);
+  }
+
+  async triggerBatchFormation() {
+    return await this.request('/batches/form', { method: 'POST' });
+  }
+
+  async acceptBatch(batchId) {
+    return await this.request(`/batches/${encodeURIComponent(batchId)}/accept`, { method: 'POST' });
+  }
+
+  async dispatchBatch(batchId) {
+    return await this.request(`/batches/${encodeURIComponent(batchId)}/dispatch`, { method: 'POST' });
+  }
+
+  async getBatchRoute(batchId) {
+    return await this.request(`/batches/${encodeURIComponent(batchId)}/route`);
+  }
 }
 
 export const recyclerApi = new RecyclerApiClient();
