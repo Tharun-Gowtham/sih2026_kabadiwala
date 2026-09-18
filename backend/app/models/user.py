@@ -10,19 +10,13 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(50), nullable=False)  # DEALER, RECYCLER, ADMIN
+    role = Column(String(50), nullable=False)  # DEALER, RECYCLER
     name = Column(String(255), nullable=False)
     phone = Column(String(50), nullable=True)
     address = Column(String(255), nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    # ── Fraud Detection: Trust Scoring ──
-    trust_score = Column(Float, default=100.0, nullable=False)
-    trust_tier = Column(String(20), default="TRUSTED", nullable=False)
-    last_trust_computed_at = Column(DateTime, nullable=True)
-    suspended_reason = Column(String(500), nullable=True)
 
     # Relationships
     purchases = relationship("Purchase", back_populates="dealer", cascade="all, delete-orphan")

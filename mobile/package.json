@@ -17,6 +17,7 @@
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",
     "@tensorflow/tfjs-core": "^4.9.0",
+    "onnxruntime-web": "^1.20.3",
     "qrcode": "^1.5.3"
   }
 }

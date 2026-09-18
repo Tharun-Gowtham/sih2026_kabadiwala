@@ -1,12 +1,12 @@
 /**
  * Kabadiwala Connect — Collector ML Classifier Engine
  * Strictly handles the 7 Canonical Categories adhering to docs/collector-ml-flow.md
- * 
- * Uses TFLite 50-class model as primary, falls back to heuristic classifier.
+ *
+ * Uses the primary TFLite model and a deterministic float16 fallback model.
  */
 
 import { CANONICAL_CATEGORIES } from './utils.js';
-import { classifyWithTFLite, isModelLoaded, getLoadStatus, warmup } from './ml-classifier-tflite.js';
+import { classifyWithTFLite, isModelLoaded, isFallbackModelLoaded, getLoadStatus, warmup } from './ml-classifier-tflite.js';
 
 export const ML_CONFIG = {
   CONFIDENCE_THRESHOLD: 0.70,
@@ -74,101 +74,45 @@ export const ML_CONFIG = {
 
 let useHeuristicFallback = false;
 
-function heuristicClassify(imageElementOrFile) {
-  return new Promise((resolve) => {
-    let img = imageElementOrFile;
-    if (imageElementOrFile instanceof Blob || imageElementOrFile instanceof File) {
-      img = new Promise((resolveImg, rejectImg) => {
-        const el = new Image();
-        el.onload = () => resolveImg(el);
-        el.onerror = rejectImg;
-        el.src = URL.createObjectURL(imageElementOrFile);
-      });
-    }
-
-    Promise.resolve(img).then((imgEl) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 64;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(imgEl, 0, 0, 64, 64);
-      const imgData = ctx.getImageData(0, 0, 64, 64).data;
-
-      let greenPixels = 0, darkPixels = 0, bluePixels = 0, copperPixels = 0;
-
-      for (let i = 0; i < imgData.length; i += 4) {
-        const r = imgData[i];
-        const g = imgData[i + 1];
-        const b = imgData[i + 2];
-
-        if (g > r * 1.2 && g > b * 1.2 && g > 60) greenPixels++;
-        if (r < 60 && g < 60 && b < 60) darkPixels++;
-        if (b > r && b > g && b > 80) bluePixels++;
-        if (r > 120 && g > 60 && b < 50) copperPixels++;
-      }
-
-      const totalPixels = 64 * 64;
-      const greenRatio = greenPixels / totalPixels;
-      const darkRatio = darkPixels / totalPixels;
-      const copperRatio = copperPixels / totalPixels;
-
-      let category = 'PCB';
-      let rawConfidence = 0.88;
-
-      if (greenRatio > 0.15) {
-        category = 'PCB';
-        rawConfidence = 0.85 + Math.min(greenRatio * 0.5, 0.12);
-      } else if (copperRatio > 0.12) {
-        category = Math.random() > 0.4 ? 'Cable' : 'Motor/Magnet';
-        rawConfidence = 0.82 + Math.min(copperRatio * 0.4, 0.14);
-      } else if (darkRatio > 0.45) {
-        category = Math.random() > 0.5 ? 'LCD' : 'Battery';
-        rawConfidence = 0.78 + Math.min(darkRatio * 0.2, 0.15);
-      } else {
-        const cats = ML_CONFIG.CATEGORIES;
-        category = cats[Math.floor(Math.random() * cats.length)];
-        rawConfidence = 0.65 + Math.random() * 0.28;
-      }
-
-      const isConfident = rawConfidence >= ML_CONFIG.CONFIDENCE_THRESHOLD;
-
-      resolve({
-        category,
-        confidence: Number(rawConfidence.toFixed(2)),
-        confidencePercentage: Math.round(rawConfidence * 100),
-        isConfident,
-        threshold: ML_CONFIG.CONFIDENCE_THRESHOLD,
-        materialInfo: ML_CONFIG.MATERIAL_INFO[category] || null,
-        source: 'heuristic',
-        categoryBreakdown: {},
-        top50Predictions: []
-      });
-    });
-  });
-}
-
 export async function classifyScrapImage(imageElementOrFile) {
-  if (!useHeuristicFallback && isModelLoaded()) {
+  try {
+    const result = await classifyWithTFLite(imageElementOrFile);
+    return {
+      ...result,
+      source: 'tflite',
+      materialInfo: ML_CONFIG.MATERIAL_INFO[result.category] || null
+    };
+  } catch (err) {
+    console.warn('[ML] Primary TFLite classification failed, trying float16 fallback:', err);
     try {
-      const result = await classifyWithTFLite(imageElementOrFile);
+      const result = await classifyWithTFLite(imageElementOrFile, 'fallback');
       return {
         ...result,
-        source: 'tflite',
+        source: 'tflite-float16',
         materialInfo: ML_CONFIG.MATERIAL_INFO[result.category] || null
       };
-    } catch (err) {
-      console.warn('[ML] TFLite classification failed, falling back to heuristic:', err);
-      useHeuristicFallback = true;
+    } catch (fallbackErr) {
+      console.warn('[ML] TFLite classification failed, returning deterministic unavailable state:', fallbackErr);
+      useHeuristicFallback = false;
+      return {
+        category: 'Mixed Plastic',
+        confidence: 0.0,
+        confidencePercentage: 0,
+        isConfident: false,
+        threshold: ML_CONFIG.CONFIDENCE_THRESHOLD,
+        materialInfo: ML_CONFIG.MATERIAL_INFO['Mixed Plastic'],
+        source: 'unavailable',
+        categoryBreakdown: {},
+        topPredictions: []
+      };
     }
   }
-
-  return heuristicClassify(imageElementOrFile);
 }
 
 export function getModelStatus() {
   return {
     ...getLoadStatus(),
-    usingFallback: useHeuristicFallback
+    usingFallback: useHeuristicFallback || isFallbackModelLoaded()
   };
 }
 
@@ -178,9 +122,22 @@ export async function initializeModel() {
     useHeuristicFallback = false;
     return true;
   } catch (err) {
-    console.warn('[ML] Model initialization failed, will use heuristic:', err);
-    useHeuristicFallback = true;
-    return false;
+    console.warn('[ML] Primary model initialization failed; trying float16 fallback:', err);
+    try {
+      const fallbackCanvas = document.createElement('canvas');
+      fallbackCanvas.width = 240;
+      fallbackCanvas.height = 240;
+      const fallbackCtx = fallbackCanvas.getContext('2d');
+      fallbackCtx.fillStyle = '#000000';
+      fallbackCtx.fillRect(0, 0, 240, 240);
+      await classifyWithTFLite(fallbackCanvas, 'fallback');
+      useHeuristicFallback = false;
+      return true;
+    } catch (fallbackErr) {
+      console.warn('[ML] Float16 fallback unavailable; using deterministic unavailable state.', fallbackErr);
+      useHeuristicFallback = false;
+      return false;
+    }
   }
 }
 

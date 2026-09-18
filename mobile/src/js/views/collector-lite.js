@@ -1,238 +1,108 @@
 /**
- * Kabadiwala Lite — Collector Guided Workflow View
- * Intuitive 4-Step Guided Flow:
- *   Step 1: Identify Material (Camera Photo & On-Device ML or 1-Tap Category Grid)
- *           Now with TFLite 50-class model support + heuristic fallback.
- *   Step 2: Approximate Weight (Tactile Stepper + Quick Chips)
- *   Step 3: Instant Fair Value & Spoken Voice Output in 8 Indian Languages
- *   Step 4: Save Digital Scrap Slip with Scannable QR & GPS OR Find Nearby Authorized Recyclers
+ * Kabadiwala Connect — Collector / Kabadiwala Lite View
+ * Implements Scrap Photo Capture, On-Device ML Inference, Confirm/Correct & Material Guide.
+ * 
+ * Now with TFLite 50-class model support + heuristic fallback.
  */
 
 import { classifyScrapImage, ML_CONFIG, getModelStatus, initializeModel } from '../ml-classifier.js';
-import { CANONICAL_CATEGORIES, getCategoryMeta, formatCurrency, generateUUID, showToast } from '../utils.js';
-import { i18n } from '../i18n.js';
-import { geoEngine } from '../geo.js';
-import { syncManager } from '../sync.js';
-import { MARKET_PRICE_DATA } from './price-board.js';
-import { saveCollectorSlip, showSlipQrModal } from './collector-ledger.js';
-import { renderCollectorRecyclersModal } from './collector-recyclers.js';
+import { detectAndClassify } from '../ml-pipeline.js';
+import { CANONICAL_CATEGORIES, getCategoryMeta, showToast } from '../utils.js';
 
-export function renderCollectorLiteView(container, navigateTo, playWelcome = false) {
-  let activeCategory = 'PCB';
-  let currentWeight = 5.0; // Default 5 kg
-  let currentStep = 1; // 1 | 2 | 3 | 4
-  let capturedImageFile = null;
+export function renderCollectorLiteView(container, navigateTo) {
   let currentPrediction = null;
-
-  const t = (k, p) => i18n.t(k, p);
-
-  // Voice helpers — language-aware spoken phrases
-  function speakHindi(hindiText, englishText, onEnd) {
-    const lang = i18n.getLang();
-    const text = lang === 'hi' ? hindiText : englishText;
-    i18n.speak(text, { onEnd });
-  }
+  let confirmedCategory = null;
+  let capturedImageFile = null;
 
   container.innerHTML = `
-    <div class="view-transition" style="padding-bottom: var(--space-xl);">
-      <!-- Offline / Online Status Assurance Pill -->
-      <div id="collectorOfflinePill" style="display: flex; align-items: center; justify-content: space-between; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(52, 211, 153, 0.25); border-radius: 9999px; padding: 5px 12px; margin-bottom: 10px; transition: all 0.3s ease;">
-        <!-- Populated dynamically via updateOfflinePill -->
-      </div>
-
-      <!-- Top Guided Stepper Bar -->
-      <div class="stepper-bar-container" style="margin-bottom: var(--space-md);">
-        <div class="stepper-track">
-          <div class="step-item ${currentStep >= 1 ? 'active' : ''}" id="stepIndicator1">
-            <div class="step-circle">1</div>
-            <span class="step-title">Identify</span>
-          </div>
-          <div class="step-line ${currentStep >= 2 ? 'active' : ''}"></div>
-          <div class="step-item ${currentStep >= 2 ? 'active' : ''}" id="stepIndicator2">
-            <div class="step-circle">2</div>
-            <span class="step-title">Weight</span>
-          </div>
-          <div class="step-line ${currentStep >= 3 ? 'active' : ''}"></div>
-          <div class="step-item ${currentStep >= 3 ? 'active' : ''}" id="stepIndicator3">
-            <div class="step-circle">3</div>
-            <span class="step-title">Value</span>
-          </div>
-          <div class="step-line ${currentStep >= 4 ? 'active' : ''}"></div>
-          <div class="step-item ${currentStep >= 4 ? 'active' : ''}" id="stepIndicator4">
-            <div class="step-circle">4</div>
-            <span class="step-title">Slip</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ================= STEP 1: IDENTIFY MATERIAL ================= -->
-      <div class="guide-step-card" id="stepCard1">
-        <div class="step-header">
-          <span class="badge badge-info">Step 1</span>
-          <h3 class="step-main-title">Identify Scrap Material</h3>
-          <p class="step-subtitle">Snap a photo with camera for AI suggestion or select from the 7 categories</p>
-        </div>
-
-        <!-- Model Status Pill -->
-        <div class="card" id="modelStatusCard" style="background: rgba(52, 211, 153, 0.08); border-color: rgba(52, 211, 153, 0.3); padding: 8px 12px; margin-bottom: 12px;">
-          <div style="font-size: 0.76rem; color: #86efac; line-height: 1.4; display: flex; align-items: center; gap: 8px;">
-            <span id="modelStatusIndicator" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span>
-            <span id="modelStatusText">Loading TFLite model...</span>
-          </div>
-        </div>
-
-        <!-- Camera Viewfinder -->
-        <div class="collector-viewfinder-card" id="viewfinderCard" style="margin-bottom: 12px;">
-          <div class="viewfinder-overlay" id="viewfinderOverlay">
-            <div class="viewfinder-reticle">
-              <div class="viewfinder-scan-line"></div>
-            </div>
-            <p style="margin-top: 14px; font-size: 0.82rem; color: #94a3b8; font-weight: 600;">
-              ${t('positionScrap')}
-            </p>
-          </div>
-          <img id="collectorPhotoPreview" class="collector-preview-img" style="display: none;" alt="Scrap preview" />
-        </div>
-
-        <!-- Camera & Gallery Triggers -->
-        <input type="file" id="collectorCameraInput" accept="image/*" capture="environment" style="display: none;" />
-        <input type="file" id="collectorGalleryInput" accept="image/*" style="display: none;" />
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
-          <button class="btn btn-primary" id="snapCameraBtn" style="padding: 12px 14px; font-weight: 700; border-radius: 14px;">
-            <span>📷 ${t('snapPhoto')}</span>
-          </button>
-          <button class="btn btn-secondary" id="pickGalleryBtn" style="padding: 12px 14px; font-weight: 700; border-radius: 14px;">
-            <span>🖼️ ${t('choosePhoto')}</span>
-          </button>
-        </div>
-
-        <!-- Sample Scrap Quick Buttons -->
-        <div style="margin-bottom: 14px;">
-          <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">
-            ⚡ Quick Test Samples
-          </div>
-          <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;">
-            <button class="btn btn-sm btn-outline sample-btn" data-sample="pcb">💻 PCB</button>
-            <button class="btn btn-sm btn-outline sample-btn" data-sample="cable">🔌 Cable</button>
-            <button class="btn btn-sm btn-outline sample-btn" data-sample="battery">🔋 Battery</button>
-            <button class="btn btn-sm btn-outline sample-btn" data-sample="lcd">🖥️ LCD</button>
-          </div>
-        </div>
-
-        <!-- Dynamic ML Results -->
-        <div id="mlResultContainer" style="margin-bottom: 14px;"></div>
-
-        <!-- Or Select Directly -->
+    <div class="view-transition">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md);">
         <div>
-          <div style="font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">
-            Or 1-Tap Category Pick:
-          </div>
-          <div class="category-grid" id="collectorCatGrid">
-            ${CANONICAL_CATEGORIES.map(cat => `
-              <div class="category-option ${cat.id === activeCategory ? 'selected' : ''}" data-cat="${cat.id}">
-                <span class="cat-icon">${cat.icon}</span>
-                <div>
-                  <div class="cat-name">${i18n.getCategoryName(cat.id)}</div>
-                  <div style="font-size: 0.72rem; color: #38bdf8; font-weight: 600;">₹${cat.baseRate}/kg</div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
+          <span style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; text-transform: uppercase;">Field Assistance</span>
+          <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);">Collector Lite</h2>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">On-device ML material detection & safety guide</p>
         </div>
-      </div>
-
-      <!-- ================= STEP 2: ENTER WEIGHT ================= -->
-      <div class="guide-step-card" id="stepCard2" style="margin-top: var(--space-md);">
-        <div class="step-header">
-          <span class="badge badge-info">Step 2</span>
-          <h3 class="step-main-title">${t('approxWeight')}</h3>
-          <p class="step-subtitle">Adjust the weight using plus/minus or tap quick weights</p>
-        </div>
-
-        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
-          <button class="btn btn-secondary weight-step-btn" id="weightMinusBtn" style="width: 50px; height: 50px; font-size: 1.5rem;">−</button>
-          <div class="input-with-affix input-with-suffix" style="flex: 1;">
-            <input 
-              type="number" 
-              id="collectorWeightInput" 
-              class="form-input" 
-              value="5" 
-              step="0.5" 
-              min="0.1" 
-              max="1000"
-              style="font-size: 1.4rem; font-weight: 800; text-align: center; height: 50px; font-family: 'JetBrains Mono', monospace;"
-            />
-            <span class="input-suffix" style="font-size: 1rem; font-weight: 700;">kg</span>
-          </div>
-          <button class="btn btn-secondary weight-step-btn" id="weightPlusBtn" style="width: 50px; height: 50px; font-size: 1.5rem;">+</button>
-        </div>
-
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="quickWeightChips">
-          <button class="btn btn-sm btn-outline weight-chip" data-weight="1">1 kg</button>
-          <button class="btn btn-sm btn-outline weight-chip" data-weight="2">2 kg</button>
-          <button class="btn btn-sm btn-outline weight-chip active" data-weight="5">5 kg</button>
-          <button class="btn btn-sm btn-outline weight-chip" data-weight="10">10 kg</button>
-          <button class="btn btn-sm btn-outline weight-chip" data-weight="25">25 kg</button>
-          <button class="btn btn-sm btn-outline weight-chip" data-weight="50">50 kg</button>
-        </div>
-      </div>
-
-      <!-- ================= STEP 3: INSTANT FAIR VALUE ================= -->
-      <div class="guide-step-card" id="stepCard3" style="margin-top: var(--space-md); border-color: rgba(52, 211, 153, 0.4); background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(16, 185, 129, 0.08));">
-        <div class="step-header">
-          <span class="badge badge-success">Step 3</span>
-          <h3 class="step-main-title">Instant Fair Value Discovery</h3>
-          <p class="step-subtitle">Real-time fair price calculation backed by current market data</p>
-        </div>
-
-        <!-- Glowing Value Banner -->
-        <div style="background: rgba(16, 185, 129, 0.12); border: 1.5px solid rgba(52, 211, 153, 0.4); border-radius: 18px; padding: 16px; margin-bottom: 14px; text-align: center;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span id="valuationCatBadge" class="badge badge-info" style="font-size: 0.8rem;">
-              💻 PCB
-            </span>
-            <span id="unitRateIndicator" style="font-size: 0.8rem; color: #38bdf8; font-weight: 700;">
-              @ ₹450 / kg
-            </span>
-          </div>
-
-          <div id="valuationTotalDisplay" style="font-size: 2.5rem; font-weight: 900; color: #34d399; font-family: 'JetBrains Mono', monospace; line-height: 1.1; margin: 8px 0;">
-            ₹2,250
-          </div>
-
-          <div id="valuationRangeDisplay" style="font-size: 0.85rem; color: #cbd5e1;">
-            ${t('marketRange')}: ₹2,000 – ₹2,750
-          </div>
-        </div>
-
-        <!-- Spoken Audio Button (Key for low-literacy) -->
-        <button class="btn btn-primary" id="speakEstimateBtn" style="width: 100%; border-radius: 14px; padding: 14px; font-size: 1.05rem; font-weight: 800; margin-bottom: 10px;">
-          <span>${t('listenEstimate')}</span>
+        <button class="btn btn-sm btn-outline" id="switchToDealerTopBtn" style="color: #34d399; border-color: rgba(52, 211, 153, 0.3);">
+          Dealer App ➔
         </button>
+      </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted);">
-          <span id="valuationGpsText">📍 GPS: Stamping...</span>
-          <span style="color: #34d399;">✓ Fair Price Protected</span>
+      <!-- Model Status Pill -->
+      <div class="card" id="modelStatusCard" style="background: rgba(52, 211, 153, 0.08); border-color: rgba(52, 211, 153, 0.3); padding: 10px 14px; margin-bottom: var(--space-md);">
+        <div style="font-size: 0.78rem; color: #86efac; line-height: 1.4; display: flex; align-items: center; gap: 8px;">
+          <span id="modelStatusIndicator" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span>
+          <span id="modelStatusText">Loading ML model...</span>
         </div>
       </div>
 
-      <!-- ================= STEP 4: TAKE ACTION & CONNECT ================= -->
-      <div class="guide-step-card" id="stepCard4" style="margin-top: var(--space-md);">
-        <div class="step-header">
-          <span class="badge badge-info">Step 4</span>
-          <h3 class="step-main-title">Save Slip &amp; Connect to Buyers</h3>
-          <p class="step-subtitle">Generate a verifiable digital slip or discover authorized nearby recyclers</p>
+      <!-- ML Notice Pill -->
+      <div class="card" style="background: rgba(14, 165, 233, 0.08); border-color: rgba(14, 165, 233, 0.3); padding: 10px 14px; margin-bottom: var(--space-md);">
+        <div style="font-size: 0.78rem; color: #bae6fd; line-height: 1.4;">
+          🤖 <strong>ML Assistance:</strong> The classifier suggests the scrap category. You can confirm or correct the suggestion at any time.
         </div>
+      </div>
 
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <button class="btn btn-primary" id="saveDigitalSlipBtn" style="padding: 14px; border-radius: 14px; font-size: 1rem; font-weight: 800; background: linear-gradient(135deg, #059669, #0284c7);">
-            <span>💾 Save Digital Scrap Slip</span>
-          </button>
+      <!-- Viewfinder / Scrap Capture Box -->
+      <div class="collector-viewfinder-card" id="viewfinderCard">
+        <div class="viewfinder-overlay" id="viewfinderOverlay">
+          <div class="viewfinder-reticle">
+            <div class="viewfinder-scan-line"></div>
+          </div>
+          <p style="margin-top: 14px; font-size: 0.82rem; color: #94a3b8; font-weight: 600;">
+            Position scrap inside frame
+          </p>
+        </div>
+        <img id="collectorPhotoPreview" class="collector-preview-img" style="display: none;" alt="Scrap preview" />
+      </div>
 
-          <button class="btn btn-outline" id="viewNearbyBuyersBtn" style="padding: 14px; border-radius: 14px; font-size: 0.95rem; font-weight: 700;">
-            <span>📍 Find Nearby Authorized Buyers</span>
-          </button>
+      <!-- Capture Actions -->
+      <input type="file" id="collectorCameraInput" accept="image/*" capture="environment" style="display: none;" />
+      <input type="file" id="collectorGalleryInput" accept="image/*" style="display: none;" />
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: var(--space-md);">
+        <button class="btn btn-primary" id="snapCameraBtn">
+          <span>📷 Snap Scrap Photo</span>
+        </button>
+        <button class="btn btn-secondary" id="pickGalleryBtn">
+          <span>🖼️ Choose Photo</span>
+        </button>
+      </div>
+
+      <!-- Sample Scrap Quick Test Buttons for Instant Demo -->
+      <div style="margin-bottom: var(--space-md);">
+        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">
+          ⚡ Quick Test Scrap Samples
+        </div>
+        <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;">
+          <button class="btn btn-sm btn-outline sample-btn" data-sample="pcb">💻 PCB Sample</button>
+          <button class="btn btn-sm btn-outline sample-btn" data-sample="cable">🔌 Cable Sample</button>
+          <button class="btn btn-sm btn-outline sample-btn" data-sample="battery">🔋 Battery Sample</button>
+          <button class="btn btn-sm btn-outline sample-btn" data-sample="lcd">🖥️ LCD Sample</button>
+        </div>
+      </div>
+
+      <!-- Dynamic ML Results Container -->
+      <div id="mlResultContainer"></div>
+
+      <!-- Manual Category Picker (Always Accessible Fallback) -->
+      <div class="card" id="manualPickerCard" style="margin-top: var(--space-md);">
+        <div class="card-header">
+          <span class="card-title" style="font-size: 0.92rem;">Manual Category Selection</span>
+          <span class="badge badge-info">7 Classes</span>
+        </div>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px;">
+          Select manually if the model is unsure or to override the prediction.
+        </p>
+        <div class="category-grid" id="collectorCatGrid">
+          ${CANONICAL_CATEGORIES.map(cat => `
+            <div class="category-option" data-cat="${cat.id}">
+              <span class="cat-icon">${cat.icon}</span>
+              <div>
+                <div class="cat-name">${cat.name}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted);">ref ₹${cat.baseRate}/kg</div>
+              </div>
+            </div>
+          `).join('')}
         </div>
       </div>
     </div>
@@ -246,184 +116,94 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
   const previewImg = container.querySelector('#collectorPhotoPreview');
   const overlay = container.querySelector('#viewfinderOverlay');
   const mlContainer = container.querySelector('#mlResultContainer');
-
-  const weightInput = container.querySelector('#collectorWeightInput');
-  const weightMinusBtn = container.querySelector('#weightMinusBtn');
-  const weightPlusBtn = container.querySelector('#weightPlusBtn');
-  const totalDisplay = container.querySelector('#valuationTotalDisplay');
-  const rangeDisplay = container.querySelector('#valuationRangeDisplay');
-  const unitRateDisplay = container.querySelector('#unitRateIndicator');
-  const catBadge = container.querySelector('#valuationCatBadge');
-  const speakBtn = container.querySelector('#speakEstimateBtn');
-  const gpsText = container.querySelector('#valuationGpsText');
-
-  const saveSlipBtn = container.querySelector('#saveDigitalSlipBtn');
-  const viewBuyersBtn = container.querySelector('#viewNearbyBuyersBtn');
-
+  const topSwitchBtn = container.querySelector('#switchToDealerTopBtn');
   const statusIndicator = container.querySelector('#modelStatusIndicator');
   const statusText = container.querySelector('#modelStatusText');
 
+  function renderDetectionOverlay(boxes) {
+    if (!previewImg || !previewImg.src) return;
+
+    const existing = previewImg.parentElement.querySelector('.detection-overlay');
+    if (existing) existing.remove();
+
+    if (!boxes || boxes.length === 0) return;
+
+    const src = previewImg;
+    const overlayBox = document.createElement('div');
+    overlayBox.className = 'detection-overlay';
+    Object.assign(overlayBox.style, {
+      position: 'absolute',
+      inset: '0',
+      pointerEvents: 'none',
+      width: '100%',
+      height: '100%'
+    });
+
+    const naturalWidth = src.naturalWidth || src.width || 640;
+    const naturalHeight = src.naturalHeight || src.height || 640;
+    const displayWidth = src.clientWidth || 320;
+    const displayHeight = src.clientHeight || 240;
+
+    const rect = src.getBoundingClientRect();
+    const scaleX = displayWidth / naturalWidth;
+    const scaleY = displayHeight / naturalHeight;
+
+    for (const box of boxes) {
+      const el = document.createElement('div');
+      el.style.position = 'absolute';
+      el.style.left = `${(box.x / naturalWidth) * displayWidth}px`;
+      el.style.top = `${(box.y / naturalHeight) * displayHeight}px`;
+      el.style.width = `${(box.width / naturalWidth) * displayWidth}px`;
+      el.style.height = `${(box.height / naturalHeight) * displayHeight}px`;
+      el.style.border = '2px solid #22c55e';
+      el.style.borderRadius = '6px';
+      el.style.background = 'rgba(34, 197, 94, 0.08)';
+      el.style.boxShadow = '0 0 0 1px rgba(34, 197, 94, 0.35)';
+      el.style.fontSize = '10px';
+      el.style.color = '#d1fae5';
+      el.style.fontWeight = '700';
+      el.style.display = 'flex';
+      el.style.alignItems = 'flex-start';
+      el.style.justifyContent = 'flex-start';
+      el.style.padding = '2px 4px';
+      el.textContent = `${(box.score * 100).toFixed(0)}%`;
+      overlayBox.appendChild(el);
+    }
+
+    src.parentElement.style.position = 'relative';
+    src.parentElement.appendChild(overlayBox);
+  }
+
   // Initialize model on view load
+  initializeModel().then(() => {
+    updateModelStatusUI();
+  });
+
   function updateModelStatusUI() {
-    if (!statusIndicator || !statusText) return;
     const status = getModelStatus();
     if (status.loaded) {
       statusIndicator.style.background = '#34d399';
-      statusText.textContent = `✅ TFLite 50-class model ready (${status.usingFallback ? 'heuristic fallback' : 'active'})`;
+      statusText.textContent = `✅ TFLite 20-class model ready (${status.usingFallback ? 'float16 fallback active' : 'primary model active'})`;
     } else if (status.isLoading) {
       statusIndicator.style.background = '#fbbf24';
       statusText.textContent = '⏳ Loading TFLite model...';
     } else {
       statusIndicator.style.background = '#ef4444';
-      statusText.textContent = '⚠️ Heuristic classifier (model offline)';
+      statusText.textContent = '⚠️ TFLite models unavailable; classification deferred';
     }
   }
 
-  initializeModel().then(() => {
-    updateModelStatusUI();
+  topSwitchBtn?.addEventListener('click', () => {
+    window.setAppMode('dealer');
   });
 
-  // Voice: speak Namaste only when first entering the app
-  if (playWelcome) {
-    setTimeout(() => {
-      speakHindi('नमस्ते।', 'Namaste.');
-    }, 600);
-  }
+  snapBtn.addEventListener('click', () => cameraInput.click());
+  pickBtn.addEventListener('click', () => galleryInput.click());
 
-  // Calculate & update valuation
-  function recalculateValuation() {
-    const w = Math.max(0.1, parseFloat(weightInput.value) || 1.0);
-    currentWeight = w;
+  cameraInput.addEventListener('change', handleImageSelection);
+  galleryInput.addEventListener('change', handleImageSelection);
 
-    const priceInfo = MARKET_PRICE_DATA.find(p => p.id === activeCategory) || {
-      currentRate: 450,
-      minRate: 400,
-      maxRate: 550
-    };
-
-    const estTotal = Math.round(w * priceInfo.currentRate);
-    const minTotal = Math.round(w * priceInfo.minRate);
-    const maxTotal = Math.round(w * priceInfo.maxRate);
-
-    totalDisplay.innerText = formatCurrency(estTotal);
-    rangeDisplay.innerText = `${t('marketRange')}: ₹${minTotal.toLocaleString('en-IN')} – ₹${maxTotal.toLocaleString('en-IN')}`;
-    unitRateDisplay.innerText = `@ ₹${priceInfo.currentRate} / kg`;
-
-    const catMeta = getCategoryMeta(activeCategory);
-    catBadge.innerHTML = `${catMeta.icon} ${i18n.getCategoryName(activeCategory)}`;
-
-    // Update active state on chips
-    container.querySelectorAll('.weight-chip').forEach(chip => {
-      const chipWeight = parseFloat(chip.getAttribute('data-weight'));
-      if (Math.abs(chipWeight - w) < 0.01) {
-        chip.classList.add('active');
-      } else {
-        chip.classList.remove('active');
-      }
-    });
-
-    return { estTotal, minTotal, maxTotal, w, priceInfo };
-  }
-
-  // Step 2 Stepper Listeners
-  weightMinusBtn?.addEventListener('click', () => {
-    let val = Math.max(0.5, (parseFloat(weightInput.value) || 1.0) - 0.5);
-    weightInput.value = val;
-    recalculateValuation();
-  });
-
-  weightPlusBtn?.addEventListener('click', () => {
-    let val = (parseFloat(weightInput.value) || 1.0) + 0.5;
-    weightInput.value = val;
-    recalculateValuation();
-  });
-
-  weightInput?.addEventListener('input', () => {
-    recalculateValuation();
-  });
-
-  // Bind Chips
-  container.querySelectorAll('.weight-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      if ('vibrate' in navigator) navigator.vibrate(25);
-      const w = parseFloat(chip.getAttribute('data-weight'));
-      weightInput.value = w;
-      recalculateValuation();
-    });
-  });
-
-  // Bind Speech Audio Readout
-  speakBtn?.addEventListener('click', () => {
-    const { estTotal, minTotal, maxTotal, w } = recalculateValuation();
-    const catName = i18n.getCategoryName(activeCategory);
-
-    const speechText = i18n.t('speech.valuation', {
-      weight: w,
-      category: catName,
-      value: estTotal,
-      min: minTotal,
-      max: maxTotal
-    });
-
-    speakBtn.classList.add('pulse-anim');
-    speakBtn.innerHTML = `<span>⏳ ${t('speaking')}</span>`;
-
-    i18n.speak(speechText, {
-      onEnd: () => {
-        speakBtn.classList.remove('pulse-anim');
-        speakBtn.innerHTML = `<span>${t('listenEstimate')}</span>`;
-      },
-      onError: () => {
-        speakBtn.classList.remove('pulse-anim');
-        speakBtn.innerHTML = `<span>${t('listenEstimate')}</span>`;
-      }
-    });
-  });
-
-  // Save Digital Scrap Slip
-  saveSlipBtn?.addEventListener('click', () => {
-    if ('vibrate' in navigator) navigator.vibrate([30, 50, 30]);
-    const { estTotal, priceInfo, w } = recalculateValuation();
-    const catMeta = getCategoryMeta(activeCategory);
-    const pos = geoEngine.currentPosition || geoEngine.fallbackCoords;
-
-    const slip = {
-      id: generateUUID(),
-      category: activeCategory,
-      icon: catMeta.icon || '📦',
-      weight: w,
-      rate: priceInfo.currentRate,
-      estimatedValue: estTotal,
-      gpsText: geoEngine.formatCoords(pos),
-      latitude: pos?.latitude,
-      longitude: pos?.longitude,
-      createdAt: new Date().toISOString()
-    };
-
-    saveCollectorSlip(slip);
-    showToast(`✓ Scrap Slip Saved: ₹${estTotal}`, 'success');
-    showSlipQrModal(slip);
-  });
-
-  // View Nearby Buyers Modal
-  viewBuyersBtn?.addEventListener('click', () => {
-    renderCollectorRecyclersModal(activeCategory);
-  });
-
-  // Photo handlers — speak prompt when user taps snap or pick
-  snapBtn?.addEventListener('click', () => {
-    speakHindi('कृपया कबाड़ की साफ़ फोटो लें।', 'Please take a clear photo of the scrap.');
-    cameraInput.click();
-  });
-  pickBtn?.addEventListener('click', () => {
-    speakHindi('कृपया कबाड़ की साफ़ फोटो लें।', 'Please take a clear photo of the scrap.');
-    galleryInput.click();
-  });
-
-  cameraInput?.addEventListener('change', handleImageSelection);
-  galleryInput?.addEventListener('change', handleImageSelection);
-
-  // Quick test samples
+  // Sample quick tests
   container.querySelectorAll('.sample-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const type = btn.getAttribute('data-sample');
@@ -432,21 +212,22 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
   });
 
   function runSampleTest(type) {
+    // Generate synthetic canvas for realistic visual ML test
     const canvas = document.createElement('canvas');
     canvas.width = 120;
     canvas.height = 120;
     const ctx = canvas.getContext('2d');
 
     if (type === 'pcb') {
-      ctx.fillStyle = '#065f46';
+      ctx.fillStyle = '#065f46'; // Green PCB substrate
       ctx.fillRect(0, 0, 120, 120);
-      ctx.fillStyle = '#fbbf24';
+      ctx.fillStyle = '#fbbf24'; // Gold / solder pads
       ctx.fillRect(20, 20, 30, 30);
       ctx.fillRect(70, 40, 25, 25);
     } else if (type === 'cable') {
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(0, 0, 120, 120);
-      ctx.strokeStyle = '#ea580c';
+      ctx.strokeStyle = '#ea580c'; // Copper wire
       ctx.lineWidth = 12;
       ctx.beginPath();
       ctx.moveTo(10, 20);
@@ -458,7 +239,7 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
       ctx.fillStyle = '#ef4444';
       ctx.fillRect(30, 30, 60, 60);
     } else {
-      ctx.fillStyle = '#0f172a';
+      ctx.fillStyle = '#0f172a'; // Dark LCD panel
       ctx.fillRect(0, 0, 120, 120);
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(10, 10, 100, 100);
@@ -490,34 +271,54 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
     mlContainer.innerHTML = `
       <div class="card" style="text-align: center; padding: var(--space-md);">
         <div class="spinner" style="margin: 0 auto 10px;"></div>
-        <p style="font-size: 0.88rem; color: var(--text-secondary);">Running on-device ML classifier...</p>
+        <p style="font-size: 0.88rem; color: var(--text-secondary);">Running detection + classification pipeline...</p>
       </div>
     `;
 
     try {
-      const pred = await classifyScrapImage(imgSource);
-      currentPrediction = pred;
-      activeCategory = pred.category;
-      renderMlResult(pred);
-      highlightSelectedCategory(pred.category);
-      recalculateValuation();
+      const pred = await detectAndClassify(imgSource);
+      if (pred && pred.perDetection) {
+        const highest = pred.perDetection[0];
+        const detectedTop = highest && highest.category ? highest.category : pred.category;
+        currentPrediction = {
+          ...pred,
+          category: detectedTop,
+          confidence: pred.confidence || highest?.confidence || 0.7,
+          confidencePercentage: pred.confidencePercentage || highest?.confidencePercentage || 70,
+          isConfident: pred.isConfident || !!highest,
+          materialInfo: ML_CONFIG.MATERIAL_INFO[detectedTop] || null,
+          source: 'pipeline'
+        };
+        renderMlResult(currentPrediction);
+        renderDetectionOverlay(pred.detectionBoxes || pred.perDetection?.map(item => item.box));
+      } else {
+        const simplePrediction = await classifyScrapImage(imgSource);
+        currentPrediction = simplePrediction;
+        renderMlResult(simplePrediction);
+      }
       updateModelStatusUI();
     } catch (err) {
       console.error('Inference error:', err);
-      mlContainer.innerHTML = `
-        <div class="card" style="border-color: #ef4444; padding: var(--space-md);">
-          <div style="font-weight: 700; color: #f87171; margin-bottom: 4px;">Inference Offline</div>
-          <p style="font-size: 0.82rem; color: var(--text-muted);">Please select the category manually using the grid below.</p>
-        </div>
-      `;
+      try {
+        const fallback = await classifyScrapImage(imgSource);
+        currentPrediction = fallback;
+        renderMlResult(fallback);
+      } catch (fallbackErr) {
+        console.error('Fallback inference error:', fallbackErr);
+        mlContainer.innerHTML = `
+          <div class="card" style="border-color: #ef4444; padding: var(--space-md);">
+            <div style="font-weight: 700; color: #f87171; margin-bottom: 4px;">Inference Offline</div>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Please select the category manually using the grid below.</p>
+          </div>
+        `;
+      }
       updateModelStatusUI();
     }
   }
 
   function renderMlResult(pred) {
     const meta = getCategoryMeta(pred.category);
-    const catName = i18n.getCategoryName(pred.category);
-    const info = pred.materialInfo || ML_CONFIG.MATERIAL_INFO?.[pred.category];
+    const info = pred.materialInfo;
     const source = pred.source || 'unknown';
     const isTFLite = source === 'tflite';
 
@@ -550,12 +351,12 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
 
     // Top 50 predictions (collapsible)
     let top50Html = '';
-    if (isTFLite && pred.top50Predictions && pred.top50Predictions.length > 0) {
+    if (isTFLite && pred.topPredictions && pred.topPredictions.length > 0) {
       top50Html = `
         <details class="top50-details" style="margin-top: 10px;">
-          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Top 10 of 50 Raw Predictions</summary>
+          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Top 10 of 20 Raw Predictions</summary>
           <div style="margin-top: 8px; display: grid; gap: 3px;">
-            ${pred.top50Predictions.map(p => `
+            ${pred.topPredictions.map(p => `
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7rem; padding: 4px 8px; background: rgba(148, 163, 184, 0.1); border-radius: 4px;">
                 <span style="width: 140px; color: var(--text-main);">${p.label}</span>
                 <span style="width: 80px; color: var(--text-secondary);">→ ${p.canonical}</span>
@@ -575,11 +376,11 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
         <div class="ml-header">
           <div class="ml-category-title">
             <span>${meta.icon}</span>
-            <span>${pred.isConfident ? `${t('detectedCategory')}: ${catName}` : 'Uncertain Classification'}</span>
+            <span>${pred.isConfident ? `Suggested: ${pred.category}` : 'Uncertain Classification'}</span>
           </div>
           <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
             <span class="badge ${pred.isConfident ? 'badge-success' : 'badge-warning'}">
-              ${pred.confidencePercentage}% ${t('confidence')}
+              ${pred.confidencePercentage}% Confidence
             </span>
             <span style="font-size: 0.65rem; color: ${isTFLite ? '#38bdf8' : '#fbbf24'}; font-weight: 600;">
               ${isTFLite ? '🤖 TFLite Model' : '🧮 Heuristic Fallback'}
@@ -587,9 +388,10 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
           </div>
         </div>
 
+        <!-- Confidence Progress Bar -->
         <div class="confidence-bar-wrapper">
           <div class="confidence-labels">
-            <span>${t('confidence')}</span>
+            <span>ML Confidence Score</span>
             <span>Threshold: ${Math.round(pred.threshold * 100)}%</span>
           </div>
           <div class="confidence-progress-bg">
@@ -604,68 +406,59 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
         ${top50Html}
 
         ${pred.isConfident ? `
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
-            <button class="btn btn-primary btn-sm" id="confirmMlBtn">
-              <span>${t('confirmCategory')}</span>
+          <div style="font-size: 0.82rem; color: #a7f3d0; margin-top: 4px;">
+            ✓ High confidence match. Please confirm or correct below:
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+            <button class="btn btn-primary" id="confirmMlBtn">
+              <span>✓ Confirm ${pred.category}</span>
             </button>
-            <button class="btn btn-outline btn-sm" id="correctMlBtn">
-              <span>${t('changeCategory')}</span>
+            <button class="btn btn-outline" id="correctMlBtn">
+              <span>✏️ Change Category</span>
             </button>
           </div>
         ` : `
           <div style="font-size: 0.82rem; color: #fde68a; margin-top: 4px;">
-            ⚠️ Confidence below threshold. Please select correct category manually below.
+            ⚠️ Confidence below 70% threshold. The app will <strong>not</strong> auto-select. Please pick the correct category manually.
           </div>
         `}
       </div>
 
       <!-- Material Fact & Safety Guide Card -->
       ${info ? `
-        <div class="material-info-card" id="materialGuideCard" style="margin-top: 10px;">
-          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span class="card-title" style="font-size: 0.92rem; font-weight: 700;">${info.title} Guide</span>
-            <span class="badge badge-info" style="font-size: 0.72rem;">${info.indicativeRate}</span>
+        <div class="material-info-card" id="materialGuideCard">
+          <div class="card-header">
+            <span class="card-title" style="font-size: 0.95rem;">${info.title} Guide</span>
+            <span class="badge badge-info">${info.indicativeRate}</span>
           </div>
 
-          <div class="material-fact-row" style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.78rem;">
-            <span class="material-fact-label" style="color: var(--text-muted);">Recyclability</span>
-            <span class="material-fact-value" style="font-weight: 600; color: #34d399;">${info.recyclability}</span>
+          <div class="material-fact-row">
+            <span class="material-fact-label">Recyclability</span>
+            <span class="material-fact-value">${info.recyclability}</span>
           </div>
 
-          <div class="material-fact-row" style="margin-bottom: 6px; font-size: 0.78rem;">
-            <span class="material-fact-label" style="color: var(--text-muted); display: block; margin-bottom: 2px;">Field Sorting Tip:</span>
-            <span class="material-fact-value" style="color: var(--text-secondary);">${info.sortingTips}</span>
+          <div class="material-fact-row">
+            <span class="material-fact-label">Field Sorting Tip</span>
+            <span class="material-fact-value" style="font-size: 0.8rem;">${info.sortingTips}</span>
           </div>
 
-          <div class="material-safety-note" style="font-size: 0.74rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 6px 10px; color: #fbbf24; margin-top: 6px;">
+          <div class="material-safety-note">
             ${info.safetyNote}
           </div>
         </div>
       ` : ''}
     `;
 
-    // Voice: ask user to confirm the detected category
-    if (pred.isConfident) {
-      setTimeout(() => {
-        speakHindi(
-          `${catName} पहचाना गया। क्या यह सही है?`,
-          `${catName} detected. Is this correct?`
-        );
-      }, 300);
-    }
-
-    // Confirm button
+    // Handlers for confirm / correct
     mlContainer.querySelector('#confirmMlBtn')?.addEventListener('click', () => {
-      activeCategory = pred.category;
-      showToast(`${t('confirmCategory')}: ${catName}`, 'success');
-      highlightSelectedCategory(activeCategory);
-      recalculateValuation();
-      document.getElementById('stepCard2')?.scrollIntoView({ behavior: 'smooth' });
+      confirmedCategory = pred.category;
+      showToast(`Confirmed category: ${confirmedCategory}`, 'success');
+      highlightSelectedCategory(confirmedCategory);
     });
 
-    // Correct button
     mlContainer.querySelector('#correctMlBtn')?.addEventListener('click', () => {
-      document.getElementById('collectorCatGrid')?.scrollIntoView({ behavior: 'smooth' });
+      showToast('Please select the correct category from the grid below', 'info');
+      document.getElementById('manualPickerCard')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -683,44 +476,25 @@ export function renderCollectorLiteView(container, navigateTo, playWelcome = fal
   container.querySelectorAll('#collectorCatGrid .category-option').forEach(opt => {
     opt.addEventListener('click', () => {
       const cat = opt.getAttribute('data-cat');
-      activeCategory = cat;
+      confirmedCategory = cat;
       highlightSelectedCategory(cat);
-      recalculateValuation();
-      showToast(`${t('detectedCategory')}: ${i18n.getCategoryName(cat)}`, 'info');
+      showToast(`Selected category: ${cat}`, 'info');
+
+      // Update material guide card
+      const info = ML_CONFIG.MATERIAL_INFO[cat];
+      if (info) {
+        renderMlResult({
+          category: cat,
+          confidence: 1.0,
+          confidencePercentage: 100,
+          isConfident: true,
+          threshold: 0.7,
+          materialInfo: info,
+          source: 'manual',
+          categoryBreakdown: {},
+          topPredictions: []
+        });
+      }
     });
   });
-
-  // Offline status pill sync
-  function updateOfflinePill() {
-    const pill = container.querySelector('#collectorOfflinePill');
-    if (!pill) return;
-    const isOnline = syncManager.isOnline();
-    if (isOnline) {
-      pill.style.background = 'rgba(59, 130, 246, 0.1)';
-      pill.style.borderColor = 'rgba(96, 165, 250, 0.3)';
-      pill.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="width: 7px; height: 7px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 6px #3b82f6; display: inline-block;"></span>
-          <span style="font-size: 0.72rem; font-weight: 700; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.4px;">Online Mode</span>
-        </div>
-        <span style="font-size: 0.68rem; color: #bfdbfe; font-weight: 600;">Tap 'Online' to test Offline Mode</span>
-      `;
-    } else {
-      pill.style.background = 'rgba(16, 185, 129, 0.1)';
-      pill.style.borderColor = 'rgba(52, 211, 153, 0.25)';
-      pill.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; display: inline-block;"></span>
-          <span style="font-size: 0.72rem; font-weight: 700; color: #a7f3d0; text-transform: uppercase; letter-spacing: 0.4px;">100% Offline Active</span>
-        </div>
-        <span style="font-size: 0.68rem; color: #6ee7b7; font-weight: 600;">Zero Internet Needed</span>
-      `;
-    }
-  }
-
-  updateOfflinePill();
-  const unsubscribeSync = syncManager.subscribe(() => updateOfflinePill());
-
-  // Initial calculation
-  recalculateValuation();
 }

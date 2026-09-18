@@ -10,9 +10,11 @@ const STATIC_ASSETS = [
 ];
 
 const MODEL_ASSETS = [
-  '/models/ewaste_model/ewaste_model_int8.tflite',
+  '/models/ewaste_model/ewaste_model_dynamic.tflite',
+  '/models/ewaste_model/ewaste_model_float16.tflite',
   '/models/ewaste_model/labels.json',
-  '/models/ewaste_model/category_map.json'
+  '/models/ewaste_model/category_map.json',
+  '/models/yolo/yolov8m.onnx'
 ];
 
 const ALL_ASSETS = [...STATIC_ASSETS, ...MODEL_ASSETS];

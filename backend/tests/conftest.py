@@ -15,17 +15,6 @@ from app.core.database import Base, get_db
 from app.core.config import settings
 from app.services.seeder import seed_demo_data
 
-# ── Relax fraud detection thresholds for testing ──
-# Tests run rapidly with many purchases in quick succession,
-# which would trigger the fraud prevention controls in production.
-settings.MAX_PURCHASES_PER_HOUR = 9999
-settings.MIN_PURCHASE_INTERVAL_SECONDS = 0
-settings.MAX_DAILY_WEIGHT_KG = 999999.0
-settings.MIN_HANDOVER_WAIT_MINUTES = 0
-settings.MAX_DEALER_RECYCLER_TXN_PER_DAY = 9999
-settings.PHOTO_REQUIRED_WEIGHT_KG = 99999.0  # Disable photo requirement in tests
-settings.CRITICAL_DISCREPANCY_PERCENT = 99.0  # Only block extreme discrepancies in tests
-
 # In-memory SQLite for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 

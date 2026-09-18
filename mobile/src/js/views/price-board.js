@@ -210,11 +210,7 @@ export function renderPriceBoardView(container, navigateTo) {
       const catId = btn.getAttribute('data-cat');
       const rate = btn.getAttribute('data-rate');
       const catName = i18n.getCategoryName(catId);
-      const lang = i18n.getLang();
-      // Use speakable words instead of ₹ symbol which TTS engines cannot pronounce
-      const text = lang === 'hi'
-        ? `${catName}: ${rate} रुपये प्रति किलो।`
-        : `${catName}: ${rate} rupees per kilogram.`;
+      const text = `${catName}: ₹${rate} per kg.`;
 
       btn.classList.add('pulse-anim');
       i18n.speak(text, {

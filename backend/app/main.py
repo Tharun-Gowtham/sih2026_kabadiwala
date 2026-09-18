@@ -14,8 +14,7 @@ from app.routers import (
     handover_router,
     ledger_router,
     records_router,
-    batches_router,
-    admin_router
+    batches_router
 )
 
 @asynccontextmanager
@@ -62,7 +61,6 @@ app.include_router(handover_router, prefix=settings.API_V1_STR)
 app.include_router(ledger_router, prefix=settings.API_V1_STR)
 app.include_router(records_router, prefix=settings.API_V1_STR)
 app.include_router(batches_router, prefix=settings.API_V1_STR)
-app.include_router(admin_router, prefix=settings.API_V1_STR)
 
 @app.get("/", tags=["Health"])
 def root():

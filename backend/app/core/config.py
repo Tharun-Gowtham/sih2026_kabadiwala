@@ -16,7 +16,6 @@ class LotStatus(str, Enum):
     AVAILABLE = "AVAILABLE"
     POOLED = "POOLED"
     PENDING_HANDOVER = "PENDING_HANDOVER"
-    PENDING_REVIEW = "PENDING_REVIEW"  # Probation dealers require admin approval
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     DISPUTED = "DISPUTED"
@@ -32,13 +31,6 @@ class BatchStatus(str, Enum):
 class UserRole(str, Enum):
     DEALER = "DEALER"
     RECYCLER = "RECYCLER"
-    ADMIN = "ADMIN"
-
-class TrustTier(str, Enum):
-    TRUSTED = "TRUSTED"       # Score 80-100: Normal operation
-    WATCH = "WATCH"           # Score 60-79: Flagged for review
-    PROBATION = "PROBATION"   # Score 40-59: Lots need admin approval
-    SUSPENDED = "SUSPENDED"   # Score 0-39: Cannot create lots
 
 class SyncStatus(str, Enum):
     PENDING_SYNC = "PENDING_SYNC"
@@ -68,15 +60,5 @@ class Settings(BaseSettings):
     GEOHASH_PRECISION: int = 6               # ~1.2km x 0.6km cells
     AUTO_BATCH_ON_LOT_CREATE: bool = True    # Auto-trigger batch formation on new lot
     BATCH_AVG_SPEED_KMH: float = 30.0       # Average van speed in km/h for ETA estimates
-
-    # ── Fraud Prevention Thresholds ──────────────────────────────
-    MAX_PURCHASES_PER_HOUR: int = 20              # Physical collection limit
-    MAX_DAILY_WEIGHT_KG: float = 500.0            # Daily weight cap per dealer
-    MIN_PURCHASE_INTERVAL_SECONDS: int = 60       # Minimum seconds between purchases
-    CRITICAL_DISCREPANCY_PERCENT: float = 50.0    # Hard-block handover confirmation
-    MIN_HANDOVER_WAIT_MINUTES: int = 30           # Cooling period before confirmation
-    MAX_DEALER_RECYCLER_TXN_PER_DAY: int = 10    # Anti-collusion pair cap
-    PHOTO_REQUIRED_WEIGHT_KG: float = 5.0         # Photo mandatory above this weight
-    ADMIN_SECRET_KEY: str = os.getenv("ADMIN_SECRET_KEY", "kabadiwala-admin-2026-secret")
 
 settings = Settings()
