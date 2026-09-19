@@ -78,7 +78,7 @@ def seed_demo_lots():
         db.flush()
 
         # 2. Lot 1: PENDING HANDOVER to GreenCycle (Ready for QR Scan in Recycler Dashboard)
-        lot1_id = "LOT-2026-DEL-001"
+        lot1_id = "LOT-001"
         lot1 = Lot(
             lot_id=lot1_id,
             dealer_id=dealer.id,
@@ -93,7 +93,7 @@ def seed_demo_lots():
         db.add(lot1)
 
         # 3. Lot 2: COMPLETED (Verified by GreenCycle with Transaction and EPR Certificate)
-        lot2_id = "LOT-2026-DEL-002"
+        lot2_id = "LOT-002"
         lot2 = Lot(
             lot_id=lot2_id,
             dealer_id=dealer.id,
@@ -109,7 +109,7 @@ def seed_demo_lots():
         db.flush()
 
         txn2 = Transaction(
-            transaction_id="TXN-2026-0091",
+            transaction_id="TXN-001",
             lot_id=lot2_id,
             dealer_id=dealer.id,
             recycler_id=r1.id,
@@ -127,7 +127,7 @@ def seed_demo_lots():
         db.add(txn2)
 
         # 4. Lot 3: DISPUTED (Cable with moisture/filler discrepancy)
-        lot3_id = "LOT-2026-DEL-003"
+        lot3_id = "LOT-003"
         lot3 = Lot(
             lot_id=lot3_id,
             dealer_id=dealer.id,
@@ -143,7 +143,7 @@ def seed_demo_lots():
         db.flush()
 
         txn3 = Transaction(
-            transaction_id="TXN-2026-0092",
+            transaction_id="TXN-002",
             lot_id=lot3_id,
             dealer_id=dealer.id,
             recycler_id=r2.id,

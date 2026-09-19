@@ -153,23 +153,9 @@ function parseDetectionsFromOutput(outputData) {
 }
 
 function fallbackDetection(imageElement) {
-  const width = imageElement.naturalWidth || imageElement.width || 640;
-  const height = imageElement.naturalHeight || imageElement.height || 640;
-
-  const cx = width / 2;
-  const cy = height / 2;
-  const sw = width * 0.62;
-  const sh = height * 0.62;
-
-  return [{
-    classId: 63,
-    className: 'laptop',
-    score: 0.72,
-    x: clamp(cx - sw / 2, 0, width),
-    y: clamp(cy - sh / 2, 0, height),
-    width: clamp(sw, 32, width),
-    height: clamp(sh, 32, height)
-  }];
+  // When YOLO ONNX model is not loaded, return empty array so that
+  // the pipeline classifies the full uncropped image without hallucinating fake bounding boxes.
+  return [];
 }
 
 function asImageElement(imageElementOrFile) {
@@ -193,6 +179,8 @@ export async function detectObjects(imageElementOrFile) {
   try {
     const source = await asImageElement(imageElementOrFile);
     const session = await loadModel();
+    if (!session) return [];
+
     const tensor = prepareInputFromImage(source);
     const outputs = await session.run({ [session.inputNames[0]]: tensor });
     const outputKey = Object.keys(outputs)[0];
@@ -201,17 +189,11 @@ export async function detectObjects(imageElementOrFile) {
 
     tensor.dispose();
 
-    if (parsed.length > 0) return parsed;
-    return fallbackDetection(source);
+    if (parsed && parsed.length > 0) return parsed;
+    return [];
   } catch (error) {
-    console.warn('[YOLO] Detection failed, using fallback box heuristic:', error);
-    try {
-      const source = await asImageElement(imageElementOrFile);
-      return fallbackDetection(source);
-    } catch (fallbackError) {
-      console.error('[YOLO] Fallback detection failed:', fallbackError);
-      return [];
-    }
+    // Graceful fallback: return empty list so pipeline evaluates entire image cleanly
+    return [];
   }
 }
 

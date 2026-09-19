@@ -81,8 +81,8 @@ export default function IncomingLots() {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredLots.map((lot) => (
               <tr key={lot.lot_id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-gray-900">
-                  {lot.lot_id.substring(0, 13)}...
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-bold text-gray-900">
+                  {lot.lot_id}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">
                   {lot.dealer_name || 'Authorized Dealer'}

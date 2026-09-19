@@ -1,5 +1,5 @@
 import { detectObjects } from './ml-detector-yolo.js';
-import { classifyWithTFLite } from './ml-classifier-tflite.js';
+import { classifyScrapImage } from './ml-classifier.js';
 
 const PAD_FRACTION = 0.10;
 
@@ -113,10 +113,10 @@ export async function detectAndClassify(imageElementOrFile) {
   const boxes = await detectObjects(canvas);
 
   if (!boxes || boxes.length === 0) {
-    const fullResult = await classifyWithTFLite(canvas);
+    const fullResult = await classifyScrapImage(canvas);
     return {
       ...fullResult,
-      source: 'pipeline-fallback',
+      source: fullResult.source || 'on-device-vision',
       detections: 0
     };
   }
@@ -126,7 +126,7 @@ export async function detectAndClassify(imageElementOrFile) {
   for (const box of boxes) {
     const cropped = cropWithPadding(canvas, box, PAD_FRACTION);
     const resized = letterboxResizeTo240(cropped);
-    const result = await classifyWithTFLite(resized);
+    const result = await classifyScrapImage(resized);
     classified.push({ ...result, box });
   }
 

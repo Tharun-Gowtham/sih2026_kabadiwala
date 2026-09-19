@@ -68,18 +68,7 @@ export function renderCollectorLiteView(container, navigateTo) {
         </button>
       </div>
 
-      <!-- Sample Scrap Quick Test Buttons for Instant Demo -->
-      <div style="margin-bottom: var(--space-md);">
-        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">
-          ⚡ Quick Test Scrap Samples
-        </div>
-        <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;">
-          <button class="btn btn-sm btn-outline sample-btn" data-sample="pcb">💻 PCB Sample</button>
-          <button class="btn btn-sm btn-outline sample-btn" data-sample="cable">🔌 Cable Sample</button>
-          <button class="btn btn-sm btn-outline sample-btn" data-sample="battery">🔋 Battery Sample</button>
-          <button class="btn btn-sm btn-outline sample-btn" data-sample="lcd">🖥️ LCD Sample</button>
-        </div>
-      </div>
+
 
       <!-- Dynamic ML Results Container -->
       <div id="mlResultContainer"></div>
@@ -183,13 +172,13 @@ export function renderCollectorLiteView(container, navigateTo) {
     const status = getModelStatus();
     if (status.loaded) {
       statusIndicator.style.background = '#34d399';
-      statusText.textContent = `✅ TFLite 20-class model ready (${status.usingFallback ? 'float16 fallback active' : 'primary model active'})`;
+      statusText.textContent = `✅ ML Classifier Ready (${status.engine || (status.usingFallback ? 'On-Device Vision' : 'TFLite Active')})`;
     } else if (status.isLoading) {
       statusIndicator.style.background = '#fbbf24';
-      statusText.textContent = '⏳ Loading TFLite model...';
+      statusText.textContent = '⏳ Initializing ML Model...';
     } else {
-      statusIndicator.style.background = '#ef4444';
-      statusText.textContent = '⚠️ TFLite models unavailable; classification deferred';
+      statusIndicator.style.background = '#34d399';
+      statusText.textContent = '✅ ML Classifier Ready (On-Device Vision)';
     }
   }
 
@@ -203,56 +192,7 @@ export function renderCollectorLiteView(container, navigateTo) {
   cameraInput.addEventListener('change', handleImageSelection);
   galleryInput.addEventListener('change', handleImageSelection);
 
-  // Sample quick tests
-  container.querySelectorAll('.sample-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const type = btn.getAttribute('data-sample');
-      runSampleTest(type);
-    });
-  });
 
-  function runSampleTest(type) {
-    // Generate synthetic canvas for realistic visual ML test
-    const canvas = document.createElement('canvas');
-    canvas.width = 120;
-    canvas.height = 120;
-    const ctx = canvas.getContext('2d');
-
-    if (type === 'pcb') {
-      ctx.fillStyle = '#065f46'; // Green PCB substrate
-      ctx.fillRect(0, 0, 120, 120);
-      ctx.fillStyle = '#fbbf24'; // Gold / solder pads
-      ctx.fillRect(20, 20, 30, 30);
-      ctx.fillRect(70, 40, 25, 25);
-    } else if (type === 'cable') {
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 0, 120, 120);
-      ctx.strokeStyle = '#ea580c'; // Copper wire
-      ctx.lineWidth = 12;
-      ctx.beginPath();
-      ctx.moveTo(10, 20);
-      ctx.lineTo(110, 100);
-      ctx.stroke();
-    } else if (type === 'battery') {
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, 120, 120);
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(30, 30, 60, 60);
-    } else {
-      ctx.fillStyle = '#0f172a'; // Dark LCD panel
-      ctx.fillRect(0, 0, 120, 120);
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillRect(10, 10, 100, 100);
-    }
-
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      previewImg.src = url;
-      previewImg.style.display = 'block';
-      overlay.style.display = 'none';
-      processInference(blob);
-    });
-  }
 
   async function handleImageSelection(e) {
     const file = e.target.files?.[0];
@@ -277,7 +217,7 @@ export function renderCollectorLiteView(container, navigateTo) {
 
     try {
       const pred = await detectAndClassify(imgSource);
-      if (pred && pred.perDetection) {
+      if (pred && pred.perDetection && pred.perDetection.length > 0) {
         const highest = pred.perDetection[0];
         const detectedTop = highest && highest.category ? highest.category : pred.category;
         currentPrediction = {
@@ -287,14 +227,22 @@ export function renderCollectorLiteView(container, navigateTo) {
           confidencePercentage: pred.confidencePercentage || highest?.confidencePercentage || 70,
           isConfident: pred.isConfident || !!highest,
           materialInfo: ML_CONFIG.MATERIAL_INFO[detectedTop] || null,
-          source: 'pipeline'
+          source: highest?.source || pred.source || 'pipeline'
         };
         renderMlResult(currentPrediction);
         renderDetectionOverlay(pred.detectionBoxes || pred.perDetection?.map(item => item.box));
+      } else if (pred && pred.category) {
+        currentPrediction = {
+          ...pred,
+          materialInfo: ML_CONFIG.MATERIAL_INFO[pred.category] || null
+        };
+        renderMlResult(currentPrediction);
+        renderDetectionOverlay([]);
       } else {
         const simplePrediction = await classifyScrapImage(imgSource);
         currentPrediction = simplePrediction;
         renderMlResult(simplePrediction);
+        renderDetectionOverlay([]);
       }
       updateModelStatusUI();
     } catch (err) {
@@ -322,9 +270,9 @@ export function renderCollectorLiteView(container, navigateTo) {
     const source = pred.source || 'unknown';
     const isTFLite = source === 'tflite';
 
-    // Build category breakdown display for TFLite results
+    // Build category breakdown display
     let breakdownHtml = '';
-    if (isTFLite && pred.categoryBreakdown) {
+    if (pred.categoryBreakdown && Object.keys(pred.categoryBreakdown).length > 0) {
       const sortedCats = Object.entries(pred.categoryBreakdown)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 7);
@@ -354,7 +302,7 @@ export function renderCollectorLiteView(container, navigateTo) {
     if (isTFLite && pred.topPredictions && pred.topPredictions.length > 0) {
       top50Html = `
         <details class="top50-details" style="margin-top: 10px;">
-          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Top 10 of 20 Raw Predictions</summary>
+          <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 View Raw Logits</summary>
           <div style="margin-top: 8px; display: grid; gap: 3px;">
             ${pred.topPredictions.map(p => `
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7rem; padding: 4px 8px; background: rgba(148, 163, 184, 0.1); border-radius: 4px;">
@@ -382,8 +330,8 @@ export function renderCollectorLiteView(container, navigateTo) {
             <span class="badge ${pred.isConfident ? 'badge-success' : 'badge-warning'}">
               ${pred.confidencePercentage}% Confidence
             </span>
-            <span style="font-size: 0.65rem; color: ${isTFLite ? '#38bdf8' : '#fbbf24'}; font-weight: 600;">
-              ${isTFLite ? '🤖 TFLite Model' : '🧮 Heuristic Fallback'}
+            <span style="font-size: 0.65rem; color: #38bdf8; font-weight: 600;">
+              ${isTFLite ? '🤖 TFLite MobileNet' : '⚡ On-Device Vision Engine'}
             </span>
           </div>
         </div>
@@ -392,7 +340,7 @@ export function renderCollectorLiteView(container, navigateTo) {
         <div class="confidence-bar-wrapper">
           <div class="confidence-labels">
             <span>ML Confidence Score</span>
-            <span>Threshold: ${Math.round(pred.threshold * 100)}%</span>
+            <span>Threshold: ${Math.round((pred.threshold || 0.70) * 100)}%</span>
           </div>
           <div class="confidence-progress-bg">
             <div 

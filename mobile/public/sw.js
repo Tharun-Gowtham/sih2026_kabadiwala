@@ -1,46 +1,27 @@
-const CACHE_NAME = 'kabadiwala-ml-v1';
-const MODEL_CACHE_NAME = 'kabadiwala-model-v1';
+const CACHE_NAME = 'kabadiwala-ml-v5';
+const MODEL_CACHE_NAME = 'kabadiwala-model-v5';
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/kabadiwala-lite.html',
-  '/dealer.html',
-  '/tf-tflite.min.js'
+  '/dealer.html'
 ];
 
 const MODEL_ASSETS = [
   '/models/ewaste_model/ewaste_model_dynamic.tflite',
   '/models/ewaste_model/ewaste_model_float16.tflite',
   '/models/ewaste_model/labels.json',
-  '/models/ewaste_model/category_map.json',
-  '/models/yolo/yolov8m.onnx'
+  '/models/ewaste_model/category_map.json'
 ];
 
 const ALL_ASSETS = [...STATIC_ASSETS, ...MODEL_ASSETS];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing...');
-  event.waitUntil(
-    Promise.all([
-      caches.open(CACHE_NAME).then((cache) => {
-        console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS).catch(err => {
-          console.warn('[SW] Some static assets failed to cache:', err);
-        });
-      }),
-      caches.open(MODEL_CACHE_NAME).then((cache) => {
-        console.log('[SW] Caching model assets');
-        return cache.addAll(MODEL_ASSETS).catch(err => {
-          console.warn('[SW] Some model assets failed to cache:', err);
-        });
-      })
-    ]).then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -53,32 +34,29 @@ self.addEventListener('activate', (event) => {
 });
 
 async function fetchWithCache(cacheName, request) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
-  
-  if (cachedResponse) {
-    console.log('[SW] Serving from cache:', request.url);
-    return cachedResponse;
-  }
-
   try {
-    console.log('[SW] Fetching from network:', request.url);
     const networkResponse = await fetch(request);
-    
     if (networkResponse.ok) {
+      const cache = await caches.open(cacheName);
       cache.put(request, networkResponse.clone());
     }
-    
     return networkResponse;
   } catch (err) {
-    console.error('[SW] Network fetch failed:', request.url, err);
+    const cache = await caches.open(cacheName);
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) return cachedResponse;
     throw err;
   }
 }
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
+
+  // Vite HMR and dynamic code should always be network-first
+  if (url.pathname.startsWith('/src/') || url.pathname.includes('@vite') || url.pathname.includes('node_modules')) {
+    return;
+  }
+
   if (url.pathname.startsWith('/models/ewaste_model/')) {
     event.respondWith(fetchWithCache(MODEL_CACHE_NAME, event.request));
     return;

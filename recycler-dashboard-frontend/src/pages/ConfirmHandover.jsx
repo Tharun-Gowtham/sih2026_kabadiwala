@@ -91,7 +91,7 @@ export default function ConfirmHandover() {
           <form onSubmit={handleConfirm} className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Lot UUID (from Dealer QR Code)
+                Lot ID (from Dealer QR Code)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -101,7 +101,7 @@ export default function ConfirmHandover() {
                   type="text"
                   required
                   className="pl-11 block w-full rounded-xl border-gray-300 border px-4 py-3 focus:ring-green-500 focus:border-green-500 font-mono text-sm bg-gray-50 focus:bg-white transition-colors"
-                  placeholder="e.g. 8c0f1234-5678-4abc-9def-0123456789ab"
+                  placeholder="e.g. LOT-001"
                   value={lotId}
                   onChange={(e) => setLotId(e.target.value)}
                   onBlur={() => checkDiscrepancy(verifiedWeight)}

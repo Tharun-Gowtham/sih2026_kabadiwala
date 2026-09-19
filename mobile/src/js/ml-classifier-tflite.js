@@ -2,6 +2,11 @@ import * as tf from '@tensorflow/tfjs-core';
 import '@tensorflow/tfjs-backend-webgl';
 import '@tensorflow/tfjs-backend-wasm';
 
+// Expose tf globally so UMD modules like tf-tflite.min.js can reference it
+if (typeof window !== 'undefined' && !window.tf) {
+  window.tf = tf;
+}
+
 const MODEL_URL = '/models/ewaste_model/ewaste_model_dynamic.tflite';
 const FALLBACK_MODEL_URL = '/models/ewaste_model/ewaste_model_float16.tflite';
 const LABELS_URL = '/models/ewaste_model/labels.json';
@@ -29,21 +34,39 @@ async function loadJSON(url) {
   return resp.json();
 }
 
+function configureTFLiteGlobal() {
+  if (typeof window !== 'undefined' && window.tflite) {
+    if (typeof window.tflite.setWasmPath === 'function') {
+      try {
+        window.tflite.setWasmPath('/wasm/');
+      } catch (e) {
+        console.warn('[TFLite] setWasmPath error:', e);
+      }
+    }
+    if (window.tflite.TFLiteModel && !window.tflite.TFLiteModel.create && typeof window.tflite.loadTFLiteModel === 'function') {
+      window.tflite.TFLiteModel.create = (url) => window.tflite.loadTFLiteModel(url);
+    }
+    return true;
+  }
+  return false;
+}
+
 function waitForTFLite() {
   return new Promise((resolve, reject) => {
-    if (window.tflite && window.tflite.TFLiteModel) {
+    if (configureTFLiteGlobal()) {
       resolve();
       return;
     }
     let attempts = 0;
     const check = setInterval(() => {
       attempts++;
-      if (window.tflite && window.tflite.TFLiteModel) {
+      if (configureTFLiteGlobal()) {
         clearInterval(check);
         resolve();
-      } else if (attempts > 100) {
+      } else if (attempts > 30) {
         clearInterval(check);
-        reject(new Error('tflite global not available after 5s'));
+        // Do not reject outright - allow graceful fallback
+        resolve();
       }
     }, 50);
   });
@@ -57,7 +80,11 @@ async function loadModelAndMetadata() {
   loadPromise = (async () => {
     try {
       await tf.ready();
-      await tf.setBackend('webgl');
+      try {
+        await tf.setBackend('webgl');
+      } catch (e) {
+        console.warn('[TF] WebGL backend failed, continuing with default:', e);
+      }
       await tf.ready();
 
       await waitForTFLite();
@@ -67,13 +94,20 @@ async function loadModelAndMetadata() {
         loadJSON(CATEGORY_MAP_URL)
       ]);
 
-      model = await window.tflite.TFLiteModel.create(MODEL_URL);
-      console.log('[TFLite] Primary model loaded successfully');
+      if (window.tflite) {
+        configureTFLiteGlobal();
+        if (typeof window.tflite.loadTFLiteModel === 'function') {
+          model = await window.tflite.loadTFLiteModel(MODEL_URL);
+        } else if (typeof window.tflite.TFLiteModel?.create === 'function') {
+          model = await window.tflite.TFLiteModel.create(MODEL_URL);
+        }
+        if (model) {
+          console.log('[TFLite] Primary model loaded successfully');
+        }
+      }
     } catch (err) {
-      console.error('[TFLite] Failed to load primary model:', err);
+      console.warn('[TFLite] Failed to load primary model:', err);
       model = null;
-      labels = null;
-      categoryMap = null;
       throw err;
     } finally {
       isLoading = false;
@@ -90,10 +124,21 @@ async function loadFallbackModel() {
   fallbackLoadPromise = (async () => {
     try {
       await waitForTFLite();
-      const loaded = await window.tflite.TFLiteModel.create(FALLBACK_MODEL_URL);
-      fallbackModel = loaded;
-      console.log('[TFLite] Float16 fallback model loaded successfully');
-      return loaded;
+      if (window.tflite) {
+        configureTFLiteGlobal();
+        let loaded = null;
+        if (typeof window.tflite.loadTFLiteModel === 'function') {
+          loaded = await window.tflite.loadTFLiteModel(FALLBACK_MODEL_URL);
+        } else if (typeof window.tflite.TFLiteModel?.create === 'function') {
+          loaded = await window.tflite.TFLiteModel.create(FALLBACK_MODEL_URL);
+        }
+        fallbackModel = loaded;
+        if (loaded) {
+          console.log('[TFLite] Float16 fallback model loaded successfully');
+        }
+        return loaded;
+      }
+      return null;
     } catch (err) {
       console.warn('[TFLite] Float16 fallback model unavailable:', err);
       fallbackModel = null;
@@ -181,7 +226,7 @@ export async function classifyWithTFLite(imageElementOrFile, strategy = 'primary
 }
 
 export function isModelLoaded() {
-  return model !== null && labels !== null && categoryMap !== null;
+  return (model !== null || fallbackModel !== null) && labels !== null && categoryMap !== null;
 }
 
 export function isFallbackModelLoaded() {

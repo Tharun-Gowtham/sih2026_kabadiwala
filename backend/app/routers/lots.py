@@ -23,7 +23,7 @@ def create_lot(
     db: Session = Depends(get_db)
 ):
     category_val = data.category.value
-    lot_uuid = data.lot_id if data.lot_id else str(uuid.uuid4())
+    lot_uuid = data.lot_id if data.lot_id else f"LOT-{uuid.uuid4().hex[:6].upper()}"
 
     # Check if lot_uuid already exists
     if db.query(Lot).filter(Lot.lot_id == lot_uuid).first():
