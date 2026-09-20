@@ -1,5 +1,5 @@
-const CACHE_NAME = 'kabadiwala-ml-v5';
-const MODEL_CACHE_NAME = 'kabadiwala-model-v5';
+const CACHE_NAME = 'kabadiwala-ml-v7';
+const MODEL_CACHE_NAME = 'kabadiwala-model-v7';
 
 const STATIC_ASSETS = [
   '/',
@@ -27,7 +27,10 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME && name !== MODEL_CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .map((name) => {
+            console.log('[SW] Evicting old cache:', name);
+            return caches.delete(name);
+          })
       );
     }).then(() => self.clients.claim())
   );
@@ -54,6 +57,27 @@ self.addEventListener('fetch', (event) => {
 
   // Vite HMR and dynamic code should always be network-first
   if (url.pathname.startsWith('/src/') || url.pathname.includes('@vite') || url.pathname.includes('node_modules')) {
+    return;
+  }
+
+  // HTML navigation requests should be Network-First with Cache-Fallback
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cache = await caches.open(CACHE_NAME);
+          const cached = await cache.match(event.request);
+          if (cached) return cached;
+          return caches.match('/kabadiwala-lite.html');
+        })
+    );
     return;
   }
 

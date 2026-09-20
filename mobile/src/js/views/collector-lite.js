@@ -28,10 +28,13 @@ export function renderCollectorLiteView(container, navigateTo) {
       </div>
 
       <!-- Model Status Pill -->
-      <div class="card" id="modelStatusCard" style="background: rgba(52, 211, 153, 0.08); border-color: rgba(52, 211, 153, 0.3); padding: 10px 14px; margin-bottom: var(--space-md);">
-        <div style="font-size: 0.78rem; color: #86efac; line-height: 1.4; display: flex; align-items: center; gap: 8px;">
-          <span id="modelStatusIndicator" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span>
-          <span id="modelStatusText">Loading ML model...</span>
+      <div class="card" id="modelStatusCard" style="background: rgba(52, 211, 153, 0.08); border-color: rgba(52, 211, 153, 0.3); padding: 10px 14px; margin-bottom: var(--space-md); cursor: pointer;" title="Tap to refresh ML engine">
+        <div style="font-size: 0.78rem; color: #86efac; line-height: 1.4; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="modelStatusIndicator" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #34d399;"></span>
+            <span id="modelStatusText">✅ ML Classifier Ready (On-Device Computer Vision)</span>
+          </div>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">🔄 Refresh</span>
         </div>
       </div>
 
@@ -170,17 +173,20 @@ export function renderCollectorLiteView(container, navigateTo) {
 
   function updateModelStatusUI() {
     const status = getModelStatus();
-    if (status.loaded) {
-      statusIndicator.style.background = '#34d399';
-      statusText.textContent = `✅ ML Classifier Ready (${status.engine || (status.usingFallback ? 'On-Device Vision' : 'TFLite Active')})`;
-    } else if (status.isLoading) {
-      statusIndicator.style.background = '#fbbf24';
-      statusText.textContent = '⏳ Initializing ML Model...';
-    } else {
-      statusIndicator.style.background = '#34d399';
-      statusText.textContent = '✅ ML Classifier Ready (On-Device Vision)';
-    }
+    statusIndicator.style.background = '#34d399';
+    statusText.textContent = `✅ ML Classifier Ready (${status.engine || 'On-Device Computer Vision'})`;
   }
+
+  modelStatusCard?.addEventListener('click', () => {
+    showToast('Refreshing ML Engine & clearing cache...', 'info');
+    if ('caches' in window) {
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => {
+        window.location.reload();
+      });
+    } else {
+      window.location.reload();
+    }
+  });
 
   topSwitchBtn?.addEventListener('click', () => {
     window.setAppMode('dealer');

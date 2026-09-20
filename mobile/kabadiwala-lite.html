@@ -96,21 +96,45 @@
   <!-- Global Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- TFLite Runtime for 50-class ML Model (loads before app) -->
+  <!-- TensorFlow.js Core & WebGL Backend (loads before TFLite runtime) -->
+  <script src="/tf-core.min.js"></script>
+  <script src="/tf-backend-webgl.min.js"></script>
+  <!-- TFLite Runtime for E-waste ML Model -->
   <script src="/tf-tflite.min.js"></script>
 
   <!-- Service Worker Registration for Offline Use on Real Android Devices -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('/sw.js?v=7')
           .then((reg) => {
             reg.update();
+            if (reg.waiting) {
+              reg.waiting.postMessage('skipWaiting');
+            }
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    newWorker.postMessage('skipWaiting');
+                  }
+                });
+              }
+            });
             console.log('✓ ServiceWorker active for offline Android use. Scope:', reg.scope);
           })
           .catch((err) => {
             console.warn('ServiceWorker registration error:', err);
           });
+
+        let isRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!isRefreshing) {
+            isRefreshing = true;
+            window.location.reload();
+          }
+        });
       });
     }
 
